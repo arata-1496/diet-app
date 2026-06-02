@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Diet Tracker",
   },
 };
@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#000000",
+  themeColor: "#E9F3FF",
 };
 
 export default function RootLayout({
@@ -28,7 +28,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" className="h-full">
-      <body className="min-h-full" style={{ background: "var(--ios-bg)", color: "var(--ios-label)" }}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Noto+Sans+JP:wght@400;500;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body style={{ background: "#E9F3FF", minHeight: "100%" }}>
         {children}
       </body>
     </html>
