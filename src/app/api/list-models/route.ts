@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function GET() {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const models = await genAI.listModels();
-  const names: string[] = [];
-  for await (const m of models) {
-    names.push(m.name);
-  }
-  return NextResponse.json({ models: names });
+  const key = process.env.GEMINI_API_KEY;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
+  );
+  const data = await res.json();
+  const names = (data.models ?? []).map((m: { name: string }) => m.name);
+  return NextResponse.json({ models: names, raw: data.error ?? null });
 }
