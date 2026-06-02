@@ -74,11 +74,21 @@ export async function POST(req: NextRequest) {
   let comment = "";
 
   if (process.env.GEMINI_API_KEY) {
-    comment = await callGemini(record);
+    try {
+      comment = await callGemini(record);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ comment: `❌ Gemini APIエラー: ${msg}` }, { status: 200 });
+    }
   } else if (process.env.ANTHROPIC_API_KEY) {
-    comment = await callClaude(record);
+    try {
+      comment = await callClaude(record);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ comment: `❌ Claude APIエラー: ${msg}` }, { status: 200 });
+    }
   } else {
-    return NextResponse.json({ comment: "APIキーが設定されていません。.env.localにGEMINI_API_KEYまたはANTHROPIC_API_KEYを設定してください。" });
+    return NextResponse.json({ comment: "APIキーが設定されていません。VercelのEnvironment VariablesにGEMINI_API_KEYを設定してください。" });
   }
 
   return NextResponse.json({ comment });
