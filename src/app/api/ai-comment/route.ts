@@ -1,36 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DailyRecord } from "@/types/diet";
 
-function buildContext(record: DailyRecord): string {
-  const lines: string[] = [`日付: ${record.date}`];
+interface MealItem {
+  type?: string;
+  name?: string;
+  kcal?: number;
+  p?: number;
+  f?: number;
+  c?: number;
+}
 
+interface RequestBody {
+  record: {
+    date?: string;
+    weight?: number;
+    meals?: MealItem[];
+    persona?: string;
+    focus?: string[];
+  };
+}
+
+function buildContext(record: RequestBody["record"]): string {
+  const lines: string[] = [];
+  if (record.date) lines.push(`日付: ${record.date}`);
   if (record.weight) lines.push(`体重: ${record.weight} kg`);
+  if (record.persona) lines.push(`AIペルソナ: ${record.persona}`);
+  if (record.focus?.length) lines.push(`重点テーマ: ${record.focus.join(", ")}`);
 
-  const meals = [
-    { label: "朝食", meal: record.breakfast },
-    { label: "昼食", meal: record.lunch },
-    { label: "夕食", meal: record.dinner },
-    { label: "間食", meal: record.snack },
-  ];
-
-  const mealLines = meals
-    .filter((m) => m.meal?.description)
-    .map((m) => {
-      const cal = m.meal!.calories ? ` (${m.meal!.calories} kcal)` : "";
-      return `${m.label}: ${m.meal!.description}${cal}`;
-    });
-
-  if (mealLines.length > 0) {
-    lines.push("\n食事内容:", ...mealLines);
+  if (record.meals?.length) {
+    lines.push("\n食事内容:");
+    for (const m of record.meals) {
+      const line = `${m.type ?? ""}: ${m.name ?? ""} (${m.kcal ?? 0}kcal, P:${m.p ?? 0}g F:${m.f ?? 0}g C:${m.c ?? 0}g)`;
+      lines.push(line);
+    }
+    const total = record.meals.reduce((s, m) => s + (m.kcal ?? 0), 0);
+    lines.push(`\n合計カロリー: ${total} kcal`);
   }
-
-  const totalCal =
-    (record.breakfast?.calories ?? 0) +
-    (record.lunch?.calories ?? 0) +
-    (record.dinner?.calories ?? 0) +
-    (record.snack?.calories ?? 0);
-
-  if (totalCal > 0) lines.push(`\n合計カロリー: ${totalCal} kcal`);
 
   return lines.join("\n");
 }
@@ -43,7 +47,7 @@ const SYSTEM_PROMPT = `あなたはダイエットアドバイザーです。ユ
 
 300文字以内で、親しみやすいトーンで答えてください。絵文字を適度に使ってください。`;
 
-async function callClaude(record: DailyRecord): Promise<string> {
+async function callClaude(record: RequestBody["record"]): Promise<string> {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -57,7 +61,7 @@ async function callClaude(record: DailyRecord): Promise<string> {
   return msg.content[0].type === "text" ? msg.content[0].text : "";
 }
 
-async function callGemini(record: DailyRecord): Promise<string> {
+async function callGemini(record: RequestBody["record"]): Promise<string> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
@@ -69,7 +73,8 @@ async function callGemini(record: DailyRecord): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const { record } = (await req.json()) as { record: DailyRecord };
+  const body = (await req.json()) as RequestBody;
+  const { record } = body;
 
   let comment = "";
 
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ comment: `❌ Claude APIエラー: ${msg}` }, { status: 200 });
     }
   } else {
-    return NextResponse.json({ comment: "APIキーが設定されていません。VercelのEnvironment VariablesにGEMINI_API_KEYを設定してください。" });
+    return NextResponse.json({ comment: "APIキーが設定されていません。" });
   }
 
   return NextResponse.json({ comment });

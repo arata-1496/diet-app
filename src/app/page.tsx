@@ -52,8 +52,8 @@ export default function Home() {
 
       {/* Page content */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-        {tab === "rec" && <RecordPage />}
-        {tab === "gph" && <GraphPage />}
+        {tab === "rec" && <RecordPage store={store} showToast={showToast} />}
+        {tab === "gph" && <GraphPage store={store} />}
         {tab === "ai" && <AIPage store={store} showToast={showToast} />}
         {tab === "set" && <SettingsPage store={store} showToast={showToast} />}
       </div>

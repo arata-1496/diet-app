@@ -1,212 +1,163 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import { loadRecords } from "@/lib/storage";
-import { DailyRecord } from "@/types/diet";
+import { useState } from "react";
+import { StoreResult } from "@/lib/store";
 
-const LineChart = dynamic(() => import("./WeightChart"), { ssr: false });
-const CalChart = dynamic(() => import("./CalorieChart"), { ssr: false });
+function lineP(values: number[], w: number, h: number, padX = 0, padTop = 0, padBot = 0) {
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const iw = w - padX * 2, ih = h - padTop - padBot;
+  const pts: [number, number][] = values.map((v, i) => [padX + (iw * i) / (values.length - 1), padTop + ih - ((v - min) / range) * ih]);
+  let d = `M ${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ` C ${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`;
+  }
+  const area = d + ` L ${pts[pts.length - 1][0]},${h - padBot} L ${pts[0][0]},${h - padBot} Z`;
+  return { d, area, pts };
+}
 
-export default function GraphPage() {
-  const [records, setRecords] = useState<DailyRecord[]>([]);
-  const [period, setPeriod] = useState<7 | 14 | 30>(14);
+export default function GraphPage({ store }: { store: StoreResult }) {
+  const { state, consumed } = store;
+  const [weightPeriod, setWeightPeriod] = useState<"週" | "月">("週");
 
-  useEffect(() => {
-    setRecords(loadRecords());
-  }, []);
+  const fullHistory = state.weightHistory;
+  const wData = weightPeriod === "週" ? fullHistory.slice(-7) : fullHistory;
+  const wValues = wData.map((e) => e.kg);
+  const totalDown = Math.round((fullHistory[0].kg - state.weight) * 10) / 10;
 
-  const filtered = records.slice(-period);
+  // Calorie chart: calWeek with last element replaced by consumed
+  const calData = [...state.calWeek.slice(0, 6), consumed];
+  const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+  const daysUnder = calData.filter((c, i) => i < 6 && c > 0 && c <= state.calTarget).length;
 
-  const weightData = filtered
-    .filter((r) => r.weight != null)
-    .map((r) => ({ date: r.date, value: r.weight! }));
+  // Weight chart dimensions
+  const W = 320, H = 150, padX = 12, padTop = 10, padBot = 10;
+  const { d: wPath, area: wArea, pts: wPts } = lineP(wValues, W, H, padX, padTop, padBot);
 
-  const calorieData = filtered.map((r) => ({
-    date: r.date,
-    value:
-      (r.breakfast?.calories ?? 0) +
-      (r.lunch?.calories ?? 0) +
-      (r.dinner?.calories ?? 0) +
-      (r.snack?.calories ?? 0),
-  }));
+  // X-axis labels
+  const firstDate = wData[0]?.d?.slice(5) ?? "";
+  const midDate = wData[Math.floor(wData.length / 2)]?.d?.slice(5) ?? "";
 
-  const latestWeight = weightData.at(-1)?.value;
-  const prevWeight = weightData.at(-2)?.value;
-  const weightDiff = latestWeight && prevWeight ? latestWeight - prevWeight : null;
-
-  const avgCalories =
-    calorieData.filter((d) => d.value > 0).reduce((s, d) => s + d.value, 0) /
-    (calorieData.filter((d) => d.value > 0).length || 1);
+  // Calorie bar chart
+  const maxCal = Math.max(...calData, state.calTarget) * 1.1;
+  const BAR_H = 120;
+  const targetY = BAR_H * (1 - state.calTarget / maxCal);
 
   return (
-    <div style={{ padding: "0 16px" }}>
+    <div style={{ padding: "0 18px", paddingBottom: 24 }}>
       {/* Header */}
-      <div className="safe-top" style={{ paddingBottom: 8 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.5px", paddingTop: 16 }}>グラフ</h1>
+      <div style={{ paddingTop: 22, paddingBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 22 }}>📈</span>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#243B53" }}>グラフ</h1>
       </div>
 
-      {/* Period selector */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {([7, 14, 30] as const).map((p) => (
-          <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            style={{
-              padding: "8px 18px",
-              borderRadius: 20,
-              border: "none",
-              background: period === p ? "var(--ios-blue)" : "rgba(118,118,128,0.18)",
-              color: period === p ? "#fff" : "var(--ios-label2)",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {p}日
-          </button>
-        ))}
-      </div>
+      {/* Weight card */}
+      <div style={{ background: "#fff", borderRadius: 26, padding: 20, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#243B53" }}>体重の変化</span>
+          <div style={{ background: "#F0F7FF", borderRadius: 12, display: "flex", padding: 3, gap: 2 }}>
+            {(["週", "月"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setWeightPeriod(p)}
+                style={{
+                  padding: "4px 14px", borderRadius: 10, border: "none", cursor: "pointer",
+                  background: weightPeriod === p ? "#fff" : "transparent",
+                  boxShadow: weightPeriod === p ? "0 2px 6px rgba(61,155,255,0.15)" : "none",
+                  color: weightPeriod === p ? "#243B53" : "#8AA0B8",
+                  fontSize: 13, fontWeight: 800,
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      {/* Stats row */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        <StatCard
-          emoji="⚖️"
-          label="最新体重"
-          value={latestWeight ? `${latestWeight.toFixed(1)} kg` : "---"}
-          sub={
-            weightDiff !== null
-              ? `前日比 ${weightDiff > 0 ? "+" : ""}${weightDiff.toFixed(1)} kg`
-              : undefined
-          }
-          subColor={weightDiff != null ? (weightDiff > 0 ? "var(--ios-red)" : "var(--ios-green)") : undefined}
-        />
-        <StatCard
-          emoji="🔥"
-          label="平均カロリー"
-          value={avgCalories > 0 ? `${Math.round(avgCalories)} kcal` : "---"}
-          sub="1日平均"
-        />
-      </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <span style={{ fontSize: 30, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: "#243B53" }}>{state.weight.toFixed(1)} kg</span>
+          <div style={{ background: "#E2FBF4", color: "#2FB39A", borderRadius: 999, padding: "3px 12px", fontSize: 13, fontWeight: 800 }}>
+            ⬇ {totalDown}kg
+          </div>
+        </div>
 
-      {/* Weight chart */}
-      <div style={{ marginBottom: 20 }}>
-        <p className="section-label">体重推移</p>
-        <div className="glass-card" style={{ padding: 16 }}>
-          {weightData.length >= 2 ? (
-            <LineChart data={weightData} />
-          ) : (
-            <EmptyChart message="体重を2日以上記録すると\nグラフが表示されます" />
-          )}
+        {/* SVG chart */}
+        <div style={{ width: "100%", overflowX: "hidden" }}>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: "block" }}>
+            <defs>
+              <linearGradient id="pgrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3D9BFF" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#3D9BFF" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={wArea} fill="url(#pgrad)" />
+            <path d={wPath} fill="none" stroke="#3D9BFF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            {wPts.map((pt, i) => (
+              <circle
+                key={i}
+                cx={pt[0]}
+                cy={pt[1]}
+                r={i === wPts.length - 1 ? 5.5 : 4}
+                fill="#fff"
+                stroke="#3D9BFF"
+                strokeWidth="2.5"
+              />
+            ))}
+          </svg>
+        </div>
+
+        {/* X axis */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#8AA0B8" }}>{firstDate}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#8AA0B8" }}>{midDate}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#8AA0B8" }}>きょう</span>
         </div>
       </div>
 
-      {/* Calorie chart */}
-      <div style={{ marginBottom: 20 }}>
-        <p className="section-label">カロリー推移</p>
-        <div className="glass-card" style={{ padding: 16 }}>
-          {calorieData.some((d) => d.value > 0) ? (
-            <CalChart data={calorieData} />
-          ) : (
-            <EmptyChart message="食事のカロリーを入力すると\nグラフが表示されます" />
-          )}
+      {/* Calorie card */}
+      <div style={{ background: "#fff", borderRadius: 26, padding: 20, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", marginBottom: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#243B53", marginBottom: 14 }}>食べたカロリー</div>
+
+        {/* Bar chart */}
+        <div style={{ position: "relative", height: BAR_H + 24 }}>
+          {/* Target line */}
+          <div style={{
+            position: "absolute", left: 0, right: 0, top: targetY,
+            borderTop: "2px dashed #FFC24B",
+            zIndex: 1,
+          }} />
+          <div style={{ display: "flex", alignItems: "flex-end", height: BAR_H, gap: 6 }}>
+            {calData.map((c, i) => {
+              const barH = c > 0 ? Math.max(4, (c / maxCal) * BAR_H) : 4;
+              const isEmpty = c === 0;
+              const isOver = c > state.calTarget;
+              const bg = isEmpty
+                ? "#E3EDF8"
+                : isOver
+                ? "linear-gradient(#FF8C8C,#FF6B6B)"
+                : "linear-gradient(#3D9BFF,#2E7BE0)";
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{
+                    width: "100%", height: barH, borderRadius: "6px 6px 4px 4px",
+                    background: bg,
+                  }} />
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            {DAY_LABELS.map((d, i) => (
+              <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 700, color: "#8AA0B8" }}>{d}</div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Recent records list */}
-      <div style={{ marginBottom: 20 }}>
-        <p className="section-label">記録一覧</p>
-        <div className="glass-card" style={{ overflow: "hidden" }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--ios-label2)", fontSize: 15 }}>
-              まだ記録がありません
-            </div>
-          ) : (
-            [...filtered].reverse().map((rec) => (
-              <RecordRow key={rec.date} record={rec} />
-            ))
-          )}
+        {/* Summary pill */}
+        <div style={{ background: "#F0F7FF", borderRadius: 14, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#243B53", marginTop: 10 }}>
+          👍 今週は {daysUnder}日 目標カロリー以内！いい調子です。
         </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({
-  emoji,
-  label,
-  value,
-  sub,
-  subColor,
-}: {
-  emoji: string;
-  label: string;
-  value: string;
-  sub?: string;
-  subColor?: string;
-}) {
-  return (
-    <div className="glass-card" style={{ flex: 1, padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 20 }}>{emoji}</span>
-        <span style={{ fontSize: 12, color: "var(--ios-label2)", fontWeight: 500 }}>{label}</span>
-      </div>
-      <p style={{ fontSize: 22, fontWeight: 700 }}>{value}</p>
-      {sub && (
-        <p style={{ fontSize: 12, color: subColor ?? "var(--ios-label2)", marginTop: 4 }}>{sub}</p>
-      )}
-    </div>
-  );
-}
-
-function EmptyChart({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        height: 160,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "var(--ios-label3)",
-        fontSize: 14,
-        textAlign: "center",
-        whiteSpace: "pre-line",
-      }}
-    >
-      {message}
-    </div>
-  );
-}
-
-function RecordRow({ record }: { record: DailyRecord }) {
-  const totalCal =
-    (record.breakfast?.calories ?? 0) +
-    (record.lunch?.calories ?? 0) +
-    (record.dinner?.calories ?? 0) +
-    (record.snack?.calories ?? 0);
-
-  const dt = new Date(record.date + "T00:00:00");
-  const dateStr = dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
-
-  return (
-    <div className="list-row" style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-      <div>
-        <p style={{ fontSize: 14, fontWeight: 600 }}>{dateStr}</p>
-        <p style={{ fontSize: 12, color: "var(--ios-label2)", marginTop: 2 }}>
-          {[record.breakfast, record.lunch, record.dinner, record.snack]
-            .filter(Boolean)
-            .map((m) => m!.description)
-            .filter(Boolean)
-            .join(" / ") || "食事未記録"}
-        </p>
-      </div>
-      <div style={{ textAlign: "right" }}>
-        {record.weight && (
-          <p style={{ fontSize: 16, fontWeight: 700 }}>{record.weight.toFixed(1)} kg</p>
-        )}
-        {totalCal > 0 && (
-          <p style={{ fontSize: 12, color: "var(--ios-orange)" }}>{totalCal} kcal</p>
-        )}
       </div>
     </div>
   );
