@@ -114,7 +114,7 @@ function EditMealSheet({ meal, onSave, onClose }: {
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {cat.keys.map((key: string) => (
                   <FoodTile key={key} name={key} size={36} tile={56} radius={16}
-                    selected={emoji === key} onClick={setEmoji} showLabel />
+                    selected={emoji === key} onClick={setEmoji} showLabel style={{}} />
                 ))}
               </div>
             </div>

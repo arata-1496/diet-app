@@ -179,7 +179,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       kcal: parseInt(manualKcal) || 0,
       time: manualTime,
       emoji: manualEmoji,
-      tone: FOOD_ICONS?.[manualEmoji]?.tint ?? MEAL_TONES[manualType] ?? "#8AA0B8",
+      tone: (FOOD_ICONS as any)?.[manualEmoji]?.tint ?? MEAL_TONES[manualType] ?? "#8AA0B8",
       p: 0, f: 0, c: 0,
     });
     setManualName("");
@@ -454,7 +454,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {cat.keys.map((key: string) => (
                   <FoodTile key={key} name={key} size={36} tile={56} radius={16}
-                    selected={manualEmoji === key} onClick={setManualEmoji} showLabel />
+                    selected={manualEmoji === key} onClick={setManualEmoji} showLabel style={{}} />
                 ))}
               </div>
             </div>
