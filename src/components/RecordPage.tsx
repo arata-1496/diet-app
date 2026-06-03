@@ -224,23 +224,21 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           onClick={() => changeDate(addDays(selectedDate, -1), "right")}
           style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: "#F0F7FF", color: "#3D9BFF", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
         >‹</button>
-        {/* Fixed-height center: always same size whether today or not */}
         <div className={slideClass} style={{ textAlign: "center", minWidth: 120 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{fmtDate(selectedDate)}</div>
-            {isToday && (
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#3D9BFF", background: "#EEF6FF", borderRadius: 999, padding: "2px 8px" }}>今日</div>
-            )}
+            <div style={{ fontSize: 30, fontWeight: 800, color: "#243B53" }}>{fmtDate(selectedDate)}</div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#3D9BFF", background: "#EEF6FF", borderRadius: 999, padding: "2px 7px", visibility: isToday ? "visible" : "hidden" }}>今日</div>
+              <button
+                onClick={() => changeDate(TODAY, "left")}
+                style={{
+                  fontSize: 11, fontWeight: 800, color: "#3D9BFF",
+                  background: "none", border: "none", cursor: "pointer", padding: "1px 0",
+                  visibility: isToday ? "hidden" : "visible",
+                }}
+              >今日に戻る ›</button>
+            </div>
           </div>
-          {/* Always rendered, invisible when today → prevents height shift */}
-          <button
-            onClick={() => changeDate(TODAY, "left")}
-            style={{
-              fontSize: 11, fontWeight: 800, color: "#3D9BFF",
-              background: "none", border: "none", cursor: "pointer", padding: "2px 0", marginTop: 2,
-              visibility: isToday ? "hidden" : "visible",
-            }}
-          >今日に戻る ›</button>
         </div>
         <button
           onClick={() => { if (canGoForward) changeDate(addDays(selectedDate, 1), "left"); }}
