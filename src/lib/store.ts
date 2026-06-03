@@ -84,6 +84,8 @@ export interface StoreResult {
   toggleFocus: (id: string) => void;
   setTarget: (v: number) => void;
   setDeadline: (d: string) => void;
+  removeWeightEntry: (date: string) => void;
+  editWeightEntry: (date: string, kg: number) => void;
   reset: () => void;
 }
 
@@ -133,6 +135,16 @@ export function useStore(): StoreResult {
     },
     setTarget: (v) => update({ ...state, target: v }),
     setDeadline: (d) => update({ ...state, deadline: d }),
+    removeWeightEntry: (date) => {
+      const hist = state.weightHistory.filter((e) => e.d !== date);
+      const latest = hist.length > 0 ? hist[hist.length - 1].kg : state.weight;
+      update({ ...state, weightHistory: hist, weight: latest });
+    },
+    editWeightEntry: (date, kg) => {
+      const hist = state.weightHistory.map((e) => e.d === date ? { d: date, kg } : e);
+      const todayEntry = hist.find((e) => e.d === TODAY);
+      update({ ...state, weightHistory: hist, weight: todayEntry ? todayEntry.kg : kg });
+    },
     reset: () => {
       localStorage.removeItem(KEY);
       update(INITIAL);

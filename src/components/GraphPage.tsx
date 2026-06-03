@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { StoreResult } from "@/lib/store";
+import { useState, useRef } from "react";
+import { StoreResult, WeightEntry } from "@/lib/store";
 
 function lineP(values: number[], w: number, h: number, padX = 0, padTop = 0, padBot = 0) {
   const min = Math.min(...values), max = Math.max(...values);
@@ -25,11 +25,205 @@ function fmtDate(d: string) {
   return `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
-const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+function fmtDateFull(d: string) {
+  const dt = new Date(d + "T00:00:00");
+  return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`;
+}
 
+const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+const DELETE_THRESHOLD = 60; // px to swipe before delete button locks open
+
+// ── Swipeable weight row ──────────────────────────────────────────────────
+function WeightRow({
+  entry,
+  isLast,
+  onDelete,
+  onEdit,
+}: {
+  entry: WeightEntry;
+  isLast: boolean;
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
+  const [translateX, setTranslateX] = useState(0);
+  const [open, setOpen] = useState(false); // delete button visible
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dragging = useRef(false);
+  const locked = useRef(false); // axis locked to horizontal
+
+  const DELETE_BTN_W = 72;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    dragging.current = true;
+    locked.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!dragging.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+
+    // Lock to horizontal once direction is clear
+    if (!locked.current) {
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      if (Math.abs(dy) > Math.abs(dx)) { dragging.current = false; return; }
+      locked.current = true;
+    }
+
+    e.preventDefault(); // prevent scroll while swiping horizontally
+    const base = open ? -DELETE_BTN_W : 0;
+    const next = Math.min(0, Math.max(-DELETE_BTN_W - 12, base + dx));
+    setTranslateX(next);
+  };
+
+  const handleTouchEnd = () => {
+    dragging.current = false;
+    const threshold = open ? -(DELETE_BTN_W / 2) : -DELETE_THRESHOLD;
+    if (translateX < threshold) {
+      setTranslateX(-DELETE_BTN_W);
+      setOpen(true);
+    } else {
+      setTranslateX(0);
+      setOpen(false);
+    }
+  };
+
+  const close = () => { setTranslateX(0); setOpen(false); };
+
+  const handleTap = () => {
+    if (open) { close(); return; }
+    onEdit();
+  };
+
+  return (
+    <div style={{ position: "relative", overflow: "hidden", borderBottom: isLast ? "none" : "1px solid #F0F5FB" }}>
+      {/* Delete button (behind the row) */}
+      <div style={{
+        position: "absolute", right: 0, top: 0, bottom: 0,
+        width: DELETE_BTN_W, background: "#FF3B30",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        borderRadius: isLast ? "0 0 12px 0" : 0,
+      }}>
+        <button onClick={onDelete}
+          style={{ width: "100%", height: "100%", border: "none", background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
+          <span style={{ fontSize: 20 }}>×</span>
+          <span style={{ fontSize: 10, fontWeight: 800, color: "#fff" }}>削除</span>
+        </button>
+      </div>
+
+      {/* Row content */}
+      <div
+        onClick={handleTap}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "13px 4px",
+          background: "#fff",
+          transform: `translateX(${translateX}px)`,
+          transition: dragging.current ? "none" : "transform 0.28s cubic-bezier(.2,.8,.2,1)",
+          cursor: "pointer",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#8AA0B8" }}>{fmtDate(entry.d)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "#243B53", fontVariantNumeric: "tabular-nums" }}>
+            {entry.kg.toFixed(1)} kg
+          </span>
+          {/* Swipe hint icon */}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D0DEEE" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit modal ────────────────────────────────────────────────────────────
+function EditModal({
+  entry,
+  onSave,
+  onClose,
+}: {
+  entry: WeightEntry;
+  onSave: (kg: number) => void;
+  onClose: () => void;
+}) {
+  const [val, setVal] = useState(entry.kg.toFixed(1));
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 300 }} />
+      <div style={{
+        position: "fixed", left: "50%", top: "50%",
+        transform: "translate(-50%,-50%)",
+        zIndex: 301,
+        background: "rgba(255,255,255,0.95)",
+        backdropFilter: "blur(24px) saturate(180%)",
+        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+        borderRadius: 26,
+        padding: "24px 22px 20px",
+        width: "calc(100% - 48px)",
+        maxWidth: 340,
+        boxShadow: "0 20px 60px rgba(20,40,70,0.22)",
+      }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: "#243B53", marginBottom: 4 }}>体重を編集</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginBottom: 18 }}>{fmtDateFull(entry.d)}</div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
+          <button onClick={() => setVal((v) => (Math.round((parseFloat(v) - 0.1) * 10) / 10).toFixed(1))}
+            style={{ width: 46, height: 46, borderRadius: 14, border: "none", background: "rgba(61,155,255,0.10)", color: "#3D9BFF", fontSize: 22, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>−</button>
+          <div style={{ flex: 1, position: "relative" }}>
+            <input
+              type="number"
+              step="0.1"
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onBlur={() => {
+                const n = parseFloat(val);
+                if (!isNaN(n) && n > 0) setVal(n.toFixed(1));
+              }}
+              style={{
+                width: "100%", textAlign: "center", fontSize: 36, fontWeight: 800,
+                fontVariantNumeric: "tabular-nums", color: "#243B53",
+                background: "#F0F7FF", border: "none", borderRadius: 14,
+                padding: "10px 0", outline: "none",
+                WebkitAppearance: "none",
+              } as React.CSSProperties}
+            />
+            <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 15, fontWeight: 800, color: "#8AA0B8" }}>kg</span>
+          </div>
+          <button onClick={() => setVal((v) => (Math.round((parseFloat(v) + 0.1) * 10) / 10).toFixed(1))}
+            style={{ width: 46, height: 46, borderRadius: 14, border: "none", background: "rgba(61,155,255,0.10)", color: "#3D9BFF", fontSize: 22, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>＋</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose}
+            style={{ flex: 1, height: 48, borderRadius: 14, border: "1.5px solid #E3EDF8", background: "#fff", color: "#8AA0B8", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+            キャンセル
+          </button>
+          <button onClick={() => { const n = parseFloat(val); if (!isNaN(n) && n > 0) { onSave(n); onClose(); } }}
+            style={{ flex: 2, height: 48, borderRadius: 14, border: "none", background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 16px rgba(61,123,255,0.28)" }}>
+            保存する
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Main GraphPage ────────────────────────────────────────────────────────
 export default function GraphPage({ store }: { store: StoreResult }) {
-  const { state, consumed } = store;
+  const { state, consumed, removeWeightEntry, editWeightEntry } = store;
   const [weightPeriod, setWeightPeriod] = useState<"週" | "月">("週");
+  const [editEntry, setEditEntry] = useState<WeightEntry | null>(null);
 
   const fullHistory = state.weightHistory;
   const wData = weightPeriod === "週" ? fullHistory.slice(-7) : fullHistory;
@@ -37,8 +231,7 @@ export default function GraphPage({ store }: { store: StoreResult }) {
 
   const hasWeight = wValues.length >= 2;
   const totalDown = fullHistory.length >= 2
-    ? Math.round((fullHistory[0].kg - state.weight) * 10) / 10
-    : 0;
+    ? Math.round((fullHistory[0].kg - state.weight) * 10) / 10 : 0;
 
   const calData = [...state.calWeek.slice(0, 6), consumed];
   const hasCalories = calData.some((c) => c > 0);
@@ -50,6 +243,8 @@ export default function GraphPage({ store }: { store: StoreResult }) {
   const W = 320, H = 150, padX = 12, padTop = 10, padBot = 10;
   const chart = hasWeight ? lineP(wValues, W, H, padX, padTop, padBot) : null;
 
+  const historyList = [...fullHistory].reverse().slice(0, 20);
+
   return (
     <div style={{ padding: "0 18px", paddingBottom: 24 }}>
       <div style={{ paddingTop: 22, paddingBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
@@ -57,7 +252,7 @@ export default function GraphPage({ store }: { store: StoreResult }) {
         <h1 style={{ fontSize: 24, fontWeight: 800, color: "#243B53" }}>グラフ</h1>
       </div>
 
-      {/* Weight card */}
+      {/* Weight chart card */}
       <div style={{ background: "#fff", borderRadius: 26, padding: 20, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: "#243B53" }}>体重の変化</span>
@@ -117,7 +312,6 @@ export default function GraphPage({ store }: { store: StoreResult }) {
       {/* Calorie card */}
       <div style={{ background: "#fff", borderRadius: 26, padding: 20, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: "#243B53", marginBottom: 14 }}>食べたカロリー</div>
-
         {hasCalories ? (
           <>
             <div style={{ position: "relative", height: BAR_H + 24 }}>
@@ -152,19 +346,37 @@ export default function GraphPage({ store }: { store: StoreResult }) {
         )}
       </div>
 
-      {/* Weight history list */}
-      {fullHistory.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 26, padding: 20, boxShadow: "0 10px 30px rgba(61,155,255,0.10)" }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#243B53", marginBottom: 14 }}>体重の記録</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {[...fullHistory].reverse().slice(0, 10).map((e) => (
-              <div key={e.d} style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", borderBottom: "1px solid #F0F5FB" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#8AA0B8" }}>{fmtDate(e.d)}</span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: "#243B53", fontVariantNumeric: "tabular-nums" }}>{e.kg.toFixed(1)} kg</span>
-              </div>
+      {/* Weight history list with swipe-to-delete */}
+      {historyList.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 26, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", overflow: "hidden" }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#243B53", padding: "16px 20px 12px" }}>
+            体重の記録
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#B0C8E0", padding: "0 20px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+            左にスワイプで削除、タップで編集
+          </div>
+          <div style={{ padding: "0 16px 4px" }}>
+            {historyList.map((e, i) => (
+              <WeightRow
+                key={e.d}
+                entry={e}
+                isLast={i === historyList.length - 1}
+                onDelete={() => removeWeightEntry(e.d)}
+                onEdit={() => setEditEntry(e)}
+              />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Edit modal */}
+      {editEntry && (
+        <EditModal
+          entry={editEntry}
+          onSave={(kg) => editWeightEntry(editEntry.d, kg)}
+          onClose={() => setEditEntry(null)}
+        />
       )}
     </div>
   );
