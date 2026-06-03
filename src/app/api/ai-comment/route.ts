@@ -86,7 +86,7 @@ function buildPrompt(record: RecordInput): string {
 
 async function callGemini(prompt: string): Promise<string> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY2 ?? process.env.GEMINI_API_KEY!);
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
   const result = await model.generateContent(prompt);
   return result.response.text();
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
   const prompt = buildPrompt(record);
 
   // Try Gemini first, fall back to Claude on any error (e.g. 429 credits depleted)
-  if (process.env.GEMINI_API_KEY) {
+  if (process.env.GEMINI_API_KEY2 ?? process.env.GEMINI_API_KEY) {
     try {
       const comment = await callGemini(prompt);
       return NextResponse.json({ comment });

@@ -20,7 +20,7 @@ function parseResult(text: string) {
 
 async function analyzeWithGemini(imageBase64: string, mimeType: string) {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY2 ?? process.env.GEMINI_API_KEY!);
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
   const result = await model.generateContent([
     PROMPT,
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const { imageBase64, mimeType } = await req.json() as { imageBase64: string; mimeType: string };
 
   // Try Gemini first, fall back to Claude on any error
-  if (process.env.GEMINI_API_KEY) {
+  if (process.env.GEMINI_API_KEY2 ?? process.env.GEMINI_API_KEY) {
     try {
       const data = await analyzeWithGemini(imageBase64, mimeType);
       return NextResponse.json(data);
