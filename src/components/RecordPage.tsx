@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { StoreResult, TODAY } from "@/lib/store";
 import DialColumn from "./DialColumn";
 
@@ -27,12 +27,13 @@ type PhotoStep = "choose" | "analyzing" | "result";
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function fmtDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  if (dateStr === TODAY) return "今日";
-  if (dateStr === addDays(TODAY, -1)) return "昨日";
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
@@ -175,6 +176,21 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
     showToast("✅ 食事を追加しました！");
   };
 
+  // Swipe for date navigation
+  const swipeStartX = useRef<number | null>(null);
+  const onSwipeStart = (e: React.TouchEvent) => { swipeStartX.current = e.touches[0].clientX; };
+  const onSwipeEnd = (e: React.TouchEvent) => {
+    if (swipeStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) { // swipe left → go to next (forward)
+      if (canGoForward) setSelectedDate(addDays(selectedDate, 1));
+    } else { // swipe right → go back
+      setSelectedDate(addDays(selectedDate, -1));
+    }
+  };
+
   const closeSheet = () => {
     setSheetMode("none");
     setPhotoStep("choose");
@@ -189,18 +205,31 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       </div>
 
       {/* Date navigation */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "#fff", borderRadius: 20, padding: "10px 16px", marginBottom: 16,
-        boxShadow: "0 4px 14px rgba(61,155,255,0.08)",
-      }}>
+      <div
+        onTouchStart={onSwipeStart}
+        onTouchEnd={onSwipeEnd}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "#fff", borderRadius: 20, padding: "10px 16px", marginBottom: 16,
+          boxShadow: "0 4px 14px rgba(61,155,255,0.08)",
+        }}>
         <button
           onClick={() => setSelectedDate(addDays(selectedDate, -1))}
           style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: "#F0F7FF", color: "#3D9BFF", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
         >‹</button>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{fmtDate(selectedDate)}</div>
-          {!isToday && <div style={{ fontSize: 11, fontWeight: 700, color: "#8AA0B8" }}>{selectedDate}</div>}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{fmtDate(selectedDate)}</div>
+            {isToday && (
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#3D9BFF", background: "#EEF6FF", borderRadius: 999, padding: "2px 8px" }}>今日</div>
+            )}
+          </div>
+          {!isToday && (
+            <button
+              onClick={() => setSelectedDate(TODAY)}
+              style={{ fontSize: 11, fontWeight: 800, color: "#3D9BFF", background: "none", border: "none", cursor: "pointer", padding: "2px 0", marginTop: 2 }}
+            >今日に戻る</button>
+          )}
         </div>
         <button
           onClick={() => { if (canGoForward) setSelectedDate(addDays(selectedDate, 1)); }}
