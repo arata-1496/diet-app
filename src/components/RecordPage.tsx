@@ -20,6 +20,15 @@ const MEAL_TYPES = ["朝食", "昼食", "間食", "夕食"];
 const MEAL_EMOJIS: Record<string, string> = { 朝食: "🌅", 昼食: "🌤", 間食: "🍎", 夕食: "🌙" };
 const MEAL_TONES: Record<string, string> = { 朝食: "#8FBF6E", 昼食: "#E0A23B", 間食: "#C97FB0", 夕食: "#5B8DD6" };
 
+const ALL_EMOJIS = [
+  "🍽","🍜","🍝","🍛","🍣","🍱","🥗","🥩","🍗","🐟","🦐","🦑",
+  "🍚","🍞","🥐","🥪","🌮","🌯","🥙","🥚","🍳","🥞","🧇","🥓",
+  "🍰","🎂","🍩","🍪","🍫","🍦","🧁","🍮","🍡","🍙","🍘","🍥",
+  "🍎","🍊","🍋","🍇","🍓","🫐","🍑","🍒","🥝","🍌","🍉","🥭",
+  "🥛","☕","🍵","🧋","🥤","🍺","🍷","🍸","🧃","🍶","🫖","🥂",
+  "🥦","🥕","🌽","🥑","🍅","🫑","🧅","🧄","🥔","🫘","🌰","🥜",
+];
+
 type SheetMode = "none" | "photo" | "manual";
 type PhotoStep = "choose" | "analyzing" | "result";
 
@@ -165,6 +174,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
   const [manualName, setManualName] = useState("");
   const [manualKcal, setManualKcal] = useState("");
   const [manualEmoji, setManualEmoji] = useState("🍽");
+  const [manualTime, setManualTime] = useState(() => new Date().toTimeString().slice(0, 5));
 
   const handleAddManual = () => {
     if (!manualName.trim()) return;
@@ -172,13 +182,14 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       type: manualType,
       name: manualName.trim(),
       kcal: parseInt(manualKcal) || 0,
-      time: new Date().toTimeString().slice(0, 5),
+      time: manualTime,
       emoji: manualEmoji,
       tone: MEAL_TONES[manualType] ?? "#8AA0B8",
       p: 0, f: 0, c: 0,
     });
     setManualName("");
     setManualKcal("");
+    setManualTime(new Date().toTimeString().slice(0, 5));
     setSheetMode("none");
     showToast("✅ 食事を追加しました！");
   };
@@ -414,23 +425,37 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           style={{ width: "100%", padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF", marginBottom: 14 }}
         />
 
-        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>カロリー（わかる場合）</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <input
-            type="number"
-            placeholder="500"
-            value={manualKcal}
-            onChange={(e) => setManualKcal(e.target.value)}
-            style={{ flex: 1, padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
-          />
-          <span style={{ fontSize: 14, fontWeight: 800, color: "#8AA0B8" }}>kcal</span>
+        {/* Kcal + Time row */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>カロリー</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="number"
+                placeholder="500"
+                value={manualKcal}
+                onChange={(e) => setManualKcal(e.target.value)}
+                style={{ flex: 1, padding: "12px 12px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#8AA0B8", whiteSpace: "nowrap" }}>kcal</span>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>時刻</div>
+            <input
+              type="time"
+              value={manualTime}
+              onChange={(e) => setManualTime(e.target.value)}
+              style={{ width: "100%", padding: "12px 12px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
+            />
+          </div>
         </div>
 
         <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>アイコン</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-          {["🍽", "🍜", "🍚", "🥗", "🥩", "🐟", "🥛", "🍞", "🍰", "🍎", "☕", "🥤"].map((e) => (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+          {ALL_EMOJIS.map((e) => (
             <button key={e} onClick={() => setManualEmoji(e)}
-              style={{ width: 44, height: 44, borderRadius: 14, border: manualEmoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: manualEmoji === e ? "#F0F7FF" : "#fff", fontSize: 22, cursor: "pointer" }}>
+              style={{ width: 42, height: 42, borderRadius: 12, border: manualEmoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: manualEmoji === e ? "#F0F7FF" : "#fff", fontSize: 20, cursor: "pointer" }}>
               {e}
             </button>
           ))}

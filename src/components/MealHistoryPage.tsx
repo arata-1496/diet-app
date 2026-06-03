@@ -28,6 +28,7 @@ function EditMealSheet({ meal, onSave, onClose }: {
   const [kcal, setKcal] = useState(String(meal.kcal));
   const [type, setType] = useState(meal.type);
   const [emoji, setEmoji] = useState(meal.emoji);
+  const [time, setTime] = useState(meal.time); // HH:MM
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -37,9 +38,19 @@ function EditMealSheet({ meal, onSave, onClose }: {
       type,
       emoji,
       tone: MEAL_TONES[type] ?? "#8AA0B8",
+      time,
     });
     onClose();
   };
+
+  const EMOJIS = [
+    "🍽","🍜","🍝","🍛","🍣","🍱","🥗","🥩","🍗","🐟","🦐","🦑",
+    "🍚","🍞","🥐","🥪","🌮","🌯","🥙","🥚","🍳","🥞","🧇","🥓",
+    "🍰","🎂","🍩","🍪","🍫","🍦","🧁","🍮","🍡","🍙","🍘","🍥",
+    "🍎","🍊","🍋","🍇","🍓","🫐","🍑","🍒","🥝","🍌","🍉","🥭",
+    "🥛","☕","🍵","🧋","🥤","🍺","🍷","🍸","🧃","🍶","🫖","🥂",
+    "🥦","🥕","🌽","🥑","🍅","🫑","🧅","🧄","🥔","🫘","🌰","🥜",
+  ];
 
   return (
     <>
@@ -49,7 +60,7 @@ function EditMealSheet({ meal, onSave, onClose }: {
         background: "#fff", borderRadius: "28px 28px 0 0",
         padding: "10px 20px 36px",
         boxShadow: "0 -10px 40px rgba(20,40,70,0.2)",
-        maxHeight: "80vh", overflowY: "auto",
+        maxHeight: "85vh", overflowY: "auto",
       }}>
         <div style={{ width: 42, height: 5, borderRadius: 3, background: "#D7E2EF", margin: "0 auto 16px" }} />
         <div style={{ fontSize: 17, fontWeight: 800, color: "#243B53", marginBottom: 16 }}>✏️ 食事を編集</div>
@@ -74,24 +85,37 @@ function EditMealSheet({ meal, onSave, onClose }: {
           style={{ width: "100%", padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF", marginBottom: 14 }}
         />
 
-        {/* Kcal */}
-        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>カロリー</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <input
-            type="number"
-            value={kcal}
-            onChange={(e) => setKcal(e.target.value)}
-            style={{ flex: 1, padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
-          />
-          <span style={{ fontSize: 14, fontWeight: 800, color: "#8AA0B8" }}>kcal</span>
+        {/* Kcal + Time row */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>カロリー</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="number"
+                value={kcal}
+                onChange={(e) => setKcal(e.target.value)}
+                style={{ flex: 1, padding: "12px 12px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#8AA0B8", whiteSpace: "nowrap" }}>kcal</span>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>時刻</div>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              style={{ width: "100%", padding: "12px 12px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
+            />
+          </div>
         </div>
 
-        {/* Emoji */}
+        {/* Emoji picker */}
         <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>アイコン</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
-          {["🍽", "🍜", "🍚", "🥗", "🥩", "🐟", "🥛", "🍞", "🍰", "🍎", "☕", "🥤"].map((e) => (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 24 }}>
+          {EMOJIS.map((e) => (
             <button key={e} onClick={() => setEmoji(e)}
-              style={{ width: 44, height: 44, borderRadius: 14, border: emoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: emoji === e ? "#F0F7FF" : "#fff", fontSize: 22, cursor: "pointer" }}>
+              style={{ width: 42, height: 42, borderRadius: 12, border: emoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: emoji === e ? "#F0F7FF" : "#fff", fontSize: 20, cursor: "pointer" }}>
               {e}
             </button>
           ))}
