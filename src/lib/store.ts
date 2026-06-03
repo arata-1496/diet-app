@@ -41,12 +41,16 @@ const INITIAL: State = {
   calWeek: [0, 0, 0, 0, 0, 0, 0],
   calTarget: 1800,
   target: 58.0,
-  deadline: new Date(new Date().getFullYear(), 8, 30).toISOString().slice(0, 10), // Sep 30
+  deadline: "", // 未設定
   persona: "coach",
   focus: [],
 };
 
 const KEY = "dietB.v1";
+
+function isValidDate(s: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
 
 function load(): State {
   if (typeof window === "undefined") return INITIAL;
@@ -54,6 +58,10 @@ function load(): State {
     const raw = localStorage.getItem(KEY);
     if (!raw) return INITIAL;
     const parsed = JSON.parse(raw);
+    // migrate old deadline format (e.g. "9月30日")
+    if (parsed.deadline && !isValidDate(parsed.deadline)) {
+      parsed.deadline = "";
+    }
     return { ...INITIAL, ...parsed };
   } catch {
     return INITIAL;
