@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { StoreResult } from "@/lib/store";
+import DialColumn from "./DialColumn";
 
 const PERSONAS = [
   { id: "coach" as const, emoji: "🌱", label: "優しいコーチ", desc: "励ましながら導く" },
@@ -25,6 +26,10 @@ function fmtDeadline(d: string) {
   return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`;
 }
 
+const TODAY_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 10 }, (_, i) => String(TODAY_YEAR + i));
+const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1));
+
 function DatePickerSheet({
   value,
   onConfirm,
@@ -37,113 +42,56 @@ function DatePickerSheet({
   const today = new Date();
   const init = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + "T00:00:00") : today;
 
-  const [year, setYear] = useState(init.getFullYear());
-  const [month, setMonth] = useState(init.getMonth() + 1);
-  const [day, setDay] = useState(init.getDate());
+  const [yearIdx, setYearIdx] = useState(
+    Math.max(0, YEARS.indexOf(String(init.getFullYear())))
+  );
+  const [monthIdx, setMonthIdx] = useState(init.getMonth()); // 0-based
+  const [dayIdx, setDayIdx] = useState(init.getDate() - 1);  // 0-based
 
+  const year = parseInt(YEARS[yearIdx]);
+  const month = monthIdx + 1;
   const daysInMonth = new Date(year, month, 0).getDate();
-  const clampedDay = Math.min(day, daysInMonth);
+  const days = Array.from({ length: daysInMonth }, (_, i) => String(i + 1));
+  const clampedDayIdx = Math.min(dayIdx, daysInMonth - 1);
 
   const pad = (n: number) => String(n).padStart(2, "0");
-  const dateStr = `${year}-${pad(month)}-${pad(clampedDay)}`;
-
-  const spinStyle = (active: boolean): React.CSSProperties => ({
-    width: 44, height: 44, borderRadius: 14, border: "none",
-    background: active ? "#3D9BFF" : "rgba(61,155,255,0.10)",
-    color: active ? "#fff" : "#3D9BFF",
-    fontSize: 20, fontWeight: 800, cursor: "pointer",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
-  });
-
-  const colStyle: React.CSSProperties = {
-    display: "flex", flexDirection: "column", alignItems: "center", gap: 10, flex: 1,
-  };
-
-  const valStyle: React.CSSProperties = {
-    fontSize: 28, fontWeight: 800, color: "#243B53",
-    fontVariantNumeric: "tabular-nums", lineHeight: 1,
-    minWidth: 56, textAlign: "center",
-  };
-
-  const unitStyle: React.CSSProperties = {
-    fontSize: 12, fontWeight: 700, color: "#8AA0B8", marginTop: 2,
-  };
+  const dateStr = `${year}-${pad(month)}-${pad(clampedDayIdx + 1)}`;
 
   return (
     <>
-      {/* Backdrop */}
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 200 }} />
 
-      {/* Sheet */}
       <div style={{
         position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 201,
-        background: "rgba(255,255,255,0.92)",
+        background: "rgba(255,255,255,0.96)",
         backdropFilter: "blur(24px) saturate(180%)",
         WebkitBackdropFilter: "blur(24px) saturate(180%)",
         borderRadius: "28px 28px 0 0",
-        padding: "12px 24px 40px",
+        padding: "12px 20px 44px",
         boxShadow: "0 -8px 40px rgba(20,40,70,0.18)",
       }}>
-        {/* Handle */}
-        <div style={{ width: 40, height: 5, borderRadius: 3, background: "#D0DEEE", margin: "0 auto 20px" }} />
-        <div style={{ fontSize: 17, fontWeight: 800, color: "#243B53", textAlign: "center", marginBottom: 24 }}>期限を設定</div>
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: "#D0DEEE", margin: "0 auto 16px" }} />
+        <div style={{ fontSize: 17, fontWeight: 800, color: "#243B53", textAlign: "center", marginBottom: 8 }}>期限を設定</div>
 
-        {/* Pickers row */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginBottom: 28 }}>
-          {/* Year */}
-          <div style={colStyle}>
-            <button style={spinStyle(false)} onClick={() => setYear((y) => y + 1)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 15l-6-6-6 6" /></svg>
-            </button>
-            <div>
-              <div style={valStyle}>{year}</div>
-              <div style={unitStyle}>年</div>
-            </div>
-            <button style={spinStyle(false)} onClick={() => setYear((y) => y - 1)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
-            </button>
-          </div>
+        {/* Column labels */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          {["年", "月", "日"].map((u) => (
+            <div key={u} style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 800, color: "#8AA0B8" }}>{u}</div>
+          ))}
+        </div>
 
-          <div style={{ color: "#D0DEEE", fontSize: 24, fontWeight: 300 }}>·</div>
-
-          {/* Month */}
-          <div style={colStyle}>
-            <button style={spinStyle(false)} onClick={() => setMonth((m) => m >= 12 ? 1 : m + 1)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 15l-6-6-6 6" /></svg>
-            </button>
-            <div>
-              <div style={valStyle}>{month}</div>
-              <div style={unitStyle}>月</div>
-            </div>
-            <button style={spinStyle(false)} onClick={() => setMonth((m) => m <= 1 ? 12 : m - 1)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
-            </button>
-          </div>
-
-          <div style={{ color: "#D0DEEE", fontSize: 24, fontWeight: 300 }}>·</div>
-
-          {/* Day */}
-          <div style={colStyle}>
-            <button style={spinStyle(false)} onClick={() => setDay((d) => d >= daysInMonth ? 1 : d + 1)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 15l-6-6-6 6" /></svg>
-            </button>
-            <div>
-              <div style={valStyle}>{clampedDay}</div>
-              <div style={unitStyle}>日</div>
-            </div>
-            <button style={spinStyle(false)} onClick={() => setDay((d) => d <= 1 ? daysInMonth : d - 1)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
-            </button>
-          </div>
+        {/* Dial columns */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <DialColumn items={YEARS} selectedIndex={yearIdx} onSelect={setYearIdx} />
+          <DialColumn items={MONTHS} selectedIndex={monthIdx} onSelect={setMonthIdx} />
+          <DialColumn items={days} selectedIndex={clampedDayIdx} onSelect={setDayIdx} />
         </div>
 
         {/* Preview */}
-        <div style={{ textAlign: "center", fontSize: 15, fontWeight: 700, color: "#8AA0B8", marginBottom: 20 }}>
-          {year}年{month}月{clampedDay}日
+        <div style={{ textAlign: "center", fontSize: 15, fontWeight: 700, color: "#8AA0B8", margin: "12px 0 16px" }}>
+          {year}年{month}月{clampedDayIdx + 1}日
         </div>
 
-        {/* Confirm */}
         <button
           onClick={() => { onConfirm(dateStr); onClose(); }}
           style={{

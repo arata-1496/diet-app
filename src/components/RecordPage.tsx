@@ -2,6 +2,69 @@
 
 import { useState } from "react";
 import { StoreResult } from "@/lib/store";
+import DialColumn from "./DialColumn";
+
+const INT_ITEMS = Array.from({ length: 171 }, (_, i) => String(i + 30)); // 30–200
+const DEC_ITEMS = Array.from({ length: 10 }, (_, i) => String(i));        // 0–9
+
+function WeightDialModal({ initial, onConfirm, onClose }: {
+  initial: number;
+  onConfirm: (kg: number) => void;
+  onClose: () => void;
+}) {
+  const intPart = Math.floor(initial);
+  const decPart = Math.round((initial - intPart) * 10);
+  const [intIdx, setIntIdx] = useState(Math.max(0, intPart - 30));
+  const [decIdx, setDecIdx] = useState(decPart);
+
+  const kg = (intIdx + 30) + decIdx / 10;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 200 }} />
+      <div style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 201,
+        background: "rgba(255,255,255,0.96)",
+        backdropFilter: "blur(24px) saturate(180%)",
+        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+        borderRadius: "28px 28px 0 0",
+        padding: "12px 20px 44px",
+        boxShadow: "0 -8px 40px rgba(20,40,70,0.18)",
+      }}>
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: "#D0DEEE", margin: "0 auto 16px" }} />
+        <div style={{ fontSize: 17, fontWeight: 800, color: "#243B53", textAlign: "center", marginBottom: 8 }}>体重を入力</div>
+
+        {/* Column labels */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 4, paddingRight: 80 }}>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 800, color: "#8AA0B8" }}>kg</div>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 800, color: "#8AA0B8" }}>小数</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <DialColumn items={INT_ITEMS} selectedIndex={intIdx} onSelect={setIntIdx} />
+          <div style={{ fontSize: 28, fontWeight: 800, color: "#8AA0B8", flexShrink: 0, marginBottom: 4 }}>.</div>
+          <DialColumn items={DEC_ITEMS} selectedIndex={decIdx} onSelect={setDecIdx} />
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#8AA0B8", flexShrink: 0, width: 44 }}>kg</div>
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 34, fontWeight: 800, color: "#243B53", fontVariantNumeric: "tabular-nums", margin: "12px 0 16px" }}>
+          {kg.toFixed(1)}<span style={{ fontSize: 18 }}>kg</span>
+        </div>
+
+        <button
+          onClick={() => { onConfirm(kg); onClose(); }}
+          style={{
+            width: "100%", height: 54, borderRadius: 16, border: "none",
+            background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)",
+            color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer",
+            boxShadow: "0 8px 20px rgba(61,123,255,0.30)",
+          }}>
+          この体重を入力する
+        </button>
+      </div>
+    </>
+  );
+}
 
 const FOODS = [
   { key: "ramen", emoji: "🍜", grad: "linear-gradient(135deg,#F6B26B,#E07B39)", name: "醤油ラーメン", kcal: 580, p: 24, f: 18, c: 78, conf: 0.92 },
@@ -47,6 +110,13 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
   const handleCommit = () => {
     commitWeight(draft);
     showToast("✅ 体重を記録しました！");
+  };
+
+  // Weight dial modal
+  const [showWeightDial, setShowWeightDial] = useState(false);
+  const handleDialConfirm = (kg: number) => {
+    setDraft(kg);
+    setWeightInput(kg.toFixed(1));
   };
 
   // Meal delete
@@ -131,23 +201,23 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       }}>
         <div style={{ fontSize: 14, fontWeight: 800, opacity: 0.9, marginBottom: 8 }}>いまの体重</div>
 
-        {/* Direct number input */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4, marginBottom: 8 }}>
-          <input
-            type="number"
-            step="0.1"
-            value={weightInput}
-            onChange={(e) => handleWeightInput(e.target.value)}
-            onBlur={handleWeightBlur}
-            style={{
-              fontSize: 60, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1,
-              background: "transparent", border: "none", outline: "none", color: "#fff",
-              textAlign: "right", width: 160,
-              WebkitAppearance: "none", MozAppearance: "textfield",
-            } as React.CSSProperties}
-          />
-          <span style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>kg</span>
-        </div>
+        {/* Tappable weight display → opens dial */}
+        <button
+          onClick={() => setShowWeightDial(true)}
+          style={{
+            display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4, marginBottom: 8,
+            background: "none", border: "none", cursor: "pointer", width: "100%",
+          }}
+        >
+          <span style={{
+            fontSize: 60, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1,
+            color: "#fff",
+          }}>
+            {parseFloat(weightInput).toFixed(1)}
+          </span>
+          <span style={{ fontSize: 22, fontWeight: 800, marginBottom: 10, color: "#fff" }}>kg</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.70)", marginBottom: 12, marginLeft: 2 }}>✎</span>
+        </button>
 
         <div style={{
           display: "inline-block", background: "rgba(255,255,255,0.22)",
@@ -212,6 +282,14 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           </div>
         ))}
       </div>
+
+      {showWeightDial && (
+        <WeightDialModal
+          initial={draft}
+          onConfirm={handleDialConfirm}
+          onClose={() => setShowWeightDial(false)}
+        />
+      )}
 
       {/* Add buttons */}
       <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
