@@ -3,21 +3,19 @@
 import { useRef, useEffect, useCallback } from "react";
 
 const ITEM_H = 44;
-const VISIBLE = 5; // rows shown
 
 interface Props {
   items: string[];
   selectedIndex: number;
   onSelect: (i: number) => void;
-  unit?: string;
+  visible?: number; // default 5 (must be odd)
 }
 
-export default function DialColumn({ items, selectedIndex, onSelect, unit }: Props) {
+export default function DialColumn({ items, selectedIndex, onSelect, visible = 5 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreScrollRef = useRef(false);
 
-  // Programmatic scroll when selectedIndex changes externally
   useEffect(() => {
     if (!ref.current) return;
     const target = selectedIndex * ITEM_H;
@@ -35,15 +33,14 @@ export default function DialColumn({ items, selectedIndex, onSelect, unit }: Pro
       const idx = Math.round(ref.current.scrollTop / ITEM_H);
       const clamped = Math.max(0, Math.min(items.length - 1, idx));
       onSelect(clamped);
-      // snap to exact position
       ignoreScrollRef.current = true;
       ref.current.scrollTo({ top: clamped * ITEM_H, behavior: "smooth" });
       setTimeout(() => { ignoreScrollRef.current = false; }, 300);
     }, 80);
   }, [items.length, onSelect]);
 
-  const containerH = ITEM_H * VISIBLE;
-  const padH = ITEM_H * Math.floor(VISIBLE / 2);
+  const containerH = ITEM_H * visible;
+  const padH = ITEM_H * Math.floor(visible / 2);
 
   return (
     <div style={{ position: "relative", height: containerH, flex: 1 }}>
@@ -64,7 +61,6 @@ export default function DialColumn({ items, selectedIndex, onSelect, unit }: Pro
           rgba(255,255,255,0.30) 72%,
           rgba(255,255,255,0.92) 100%)`,
       }} />
-      {/* scrollable list */}
       <div
         ref={ref}
         onScroll={handleScroll}
@@ -84,13 +80,13 @@ export default function DialColumn({ items, selectedIndex, onSelect, unit }: Pro
               height: ITEM_H,
               display: "flex", alignItems: "center", justifyContent: "center",
               scrollSnapAlign: "start",
-              fontSize: 24, fontWeight: 800, color: "#243B53",
+              fontSize: 22, fontWeight: 800, color: "#243B53",
               fontVariantNumeric: "tabular-nums",
               cursor: "pointer",
               userSelect: "none",
             }}
           >
-            {item}{unit && i === selectedIndex ? <span style={{ fontSize: 14, fontWeight: 700, color: "#8AA0B8", marginLeft: 2 }}>{unit}</span> : null}
+            {item}
           </div>
         ))}
         <div style={{ height: padH }} />

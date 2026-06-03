@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 
 export interface Meal {
   id: number;
+  date: string; // YYYY-MM-DD
   type: string;
   name: string;
   kcal: number;
@@ -32,7 +33,7 @@ export interface State {
   focus: string[];
 }
 
-const TODAY = new Date().toISOString().slice(0, 10);
+export const TODAY = new Date().toISOString().slice(0, 10);
 
 const INITIAL: State = {
   weight: 60.0,
@@ -41,7 +42,7 @@ const INITIAL: State = {
   calWeek: [0, 0, 0, 0, 0, 0, 0],
   calTarget: 1800,
   target: 58.0,
-  deadline: "", // 未設定
+  deadline: "",
   persona: "coach",
   focus: [],
 };
@@ -58,9 +59,14 @@ function load(): State {
     const raw = localStorage.getItem(KEY);
     if (!raw) return INITIAL;
     const parsed = JSON.parse(raw);
-    // migrate old deadline format (e.g. "9月30日")
     if (parsed.deadline && !isValidDate(parsed.deadline)) {
       parsed.deadline = "";
+    }
+    // migrate meals without date
+    if (parsed.meals) {
+      parsed.meals = parsed.meals.map((m: Omit<Meal, "date"> & { date?: string }) =>
+        m.date ? m : { date: TODAY, ...m }
+      );
     }
     return { ...INITIAL, ...parsed };
   } catch {
@@ -75,10 +81,12 @@ function save(s: State) {
 
 export interface StoreResult {
   state: State;
-  consumed: number;
-  macros: { p: number; f: number; c: number };
+  consumed: number; // today only
+  macros: { p: number; f: number; c: number }; // today only
   commitWeight: (kg: number) => void;
+  commitWeightOnDate: (date: string, kg: number) => void;
   addMeal: (m: Omit<Meal, "id">) => void;
+  addMealOnDate: (date: string, m: Omit<Meal, "id" | "date">) => void;
   removeMeal: (id: number) => void;
   setPersona: (p: State["persona"]) => void;
   toggleFocus: (id: string) => void;
@@ -101,27 +109,35 @@ export function useStore(): StoreResult {
     save(next);
   }, []);
 
-  const consumed = state.meals.reduce((s, m) => s + m.kcal, 0);
-  const macros = state.meals.reduce(
+  const todayMeals = state.meals.filter((m) => m.date === TODAY);
+  const consumed = todayMeals.reduce((s, m) => s + m.kcal, 0);
+  const macros = todayMeals.reduce(
     (acc, m) => ({ p: acc.p + m.p, f: acc.f + m.f, c: acc.c + m.c }),
     { p: 0, f: 0, c: 0 }
   );
+
+  const commitWeightOnDate = (date: string, kg: number) => {
+    const hist = [...state.weightHistory];
+    const idx = hist.findIndex((e) => e.d === date);
+    if (idx >= 0) hist[idx] = { d: date, kg };
+    else hist.push({ d: date, kg });
+    hist.sort((a, b) => a.d.localeCompare(b.d));
+    const latest = hist[hist.length - 1]?.kg ?? kg;
+    update({ ...state, weight: latest, weightHistory: hist.slice(-90) });
+  };
 
   return {
     state,
     consumed,
     macros,
-    commitWeight: (kg) => {
-      const hist = [...state.weightHistory];
-      const idx = hist.findIndex((e) => e.d === TODAY);
-      if (idx >= 0) hist[idx] = { d: TODAY, kg };
-      else hist.push({ d: TODAY, kg });
-      // keep last 60 days
-      hist.sort((a, b) => a.d.localeCompare(b.d));
-      update({ ...state, weight: kg, weightHistory: hist.slice(-60) });
-    },
+    commitWeight: (kg) => commitWeightOnDate(TODAY, kg),
+    commitWeightOnDate,
     addMeal: (m) => {
       update({ ...state, meals: [...state.meals, { ...m, id: Date.now() }] });
+    },
+    addMealOnDate: (date, m) => {
+      const meal: Meal = { ...m, date, id: Date.now() };
+      update({ ...state, meals: [...state.meals, meal] });
     },
     removeMeal: (id) => {
       update({ ...state, meals: state.meals.filter((m) => m.id !== id) });
@@ -142,8 +158,8 @@ export function useStore(): StoreResult {
     },
     editWeightEntry: (date, kg) => {
       const hist = state.weightHistory.map((e) => e.d === date ? { d: date, kg } : e);
-      const todayEntry = hist.find((e) => e.d === TODAY);
-      update({ ...state, weightHistory: hist, weight: todayEntry ? todayEntry.kg : kg });
+      const latestEntry = hist[hist.length - 1];
+      update({ ...state, weightHistory: hist, weight: latestEntry ? latestEntry.kg : kg });
     },
     reset: () => {
       localStorage.removeItem(KEY);

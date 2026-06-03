@@ -1,70 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { StoreResult } from "@/lib/store";
+import { StoreResult, TODAY } from "@/lib/store";
 import DialColumn from "./DialColumn";
 
 const INT_ITEMS = Array.from({ length: 171 }, (_, i) => String(i + 30)); // 30–200
-const DEC_ITEMS = Array.from({ length: 10 }, (_, i) => String(i));        // 0–9
-
-function WeightDialModal({ initial, onConfirm, onClose }: {
-  initial: number;
-  onConfirm: (kg: number) => void;
-  onClose: () => void;
-}) {
-  const intPart = Math.floor(initial);
-  const decPart = Math.round((initial - intPart) * 10);
-  const [intIdx, setIntIdx] = useState(Math.max(0, intPart - 30));
-  const [decIdx, setDecIdx] = useState(decPart);
-
-  const kg = (intIdx + 30) + decIdx / 10;
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 200 }} />
-      <div style={{
-        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 201,
-        background: "rgba(255,255,255,0.96)",
-        backdropFilter: "blur(24px) saturate(180%)",
-        WebkitBackdropFilter: "blur(24px) saturate(180%)",
-        borderRadius: "28px 28px 0 0",
-        padding: "12px 20px 44px",
-        boxShadow: "0 -8px 40px rgba(20,40,70,0.18)",
-      }}>
-        <div style={{ width: 40, height: 5, borderRadius: 3, background: "#D0DEEE", margin: "0 auto 16px" }} />
-        <div style={{ fontSize: 17, fontWeight: 800, color: "#243B53", textAlign: "center", marginBottom: 8 }}>体重を入力</div>
-
-        {/* Column labels */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 4, paddingRight: 80 }}>
-          <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 800, color: "#8AA0B8" }}>kg</div>
-          <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 800, color: "#8AA0B8" }}>小数</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <DialColumn items={INT_ITEMS} selectedIndex={intIdx} onSelect={setIntIdx} />
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#8AA0B8", flexShrink: 0, marginBottom: 4 }}>.</div>
-          <DialColumn items={DEC_ITEMS} selectedIndex={decIdx} onSelect={setDecIdx} />
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#8AA0B8", flexShrink: 0, width: 44 }}>kg</div>
-        </div>
-
-        <div style={{ textAlign: "center", fontSize: 34, fontWeight: 800, color: "#243B53", fontVariantNumeric: "tabular-nums", margin: "12px 0 16px" }}>
-          {kg.toFixed(1)}<span style={{ fontSize: 18 }}>kg</span>
-        </div>
-
-        <button
-          onClick={() => { onConfirm(kg); onClose(); }}
-          style={{
-            width: "100%", height: 54, borderRadius: 16, border: "none",
-            background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)",
-            color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer",
-            boxShadow: "0 8px 20px rgba(61,123,255,0.30)",
-          }}>
-          この体重を入力する
-        </button>
-      </div>
-    </>
-  );
-}
+const DEC_ITEMS = Array.from({ length: 10 }, (_, i) => String(i));
 
 const FOODS = [
   { key: "ramen", emoji: "🍜", grad: "linear-gradient(135deg,#F6B26B,#E07B39)", name: "醤油ラーメン", kcal: 580, p: 24, f: 18, c: 78, conf: 0.92 },
@@ -82,41 +23,95 @@ const MEAL_TONES: Record<string, string> = { 朝食: "#8FBF6E", 昼食: "#E0A23B
 type SheetMode = "none" | "photo" | "manual";
 type PhotoStep = "choose" | "analyzing" | "result";
 
+// date helpers
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function fmtDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  if (dateStr === TODAY) return "今日";
+  if (dateStr === addDays(TODAY, -1)) return "昨日";
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function WeightDialModal({ initial, onConfirm, onClose }: {
+  initial: number; onConfirm: (kg: number) => void; onClose: () => void;
+}) {
+  const intPart = Math.floor(initial);
+  const decPart = Math.round((initial - intPart) * 10);
+  const [intIdx, setIntIdx] = useState(Math.max(0, intPart - 30));
+  const [decIdx, setDecIdx] = useState(decPart);
+  const kg = (intIdx + 30) + decIdx / 10;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 200 }} />
+      <div style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 201,
+        background: "rgba(255,255,255,0.97)",
+        backdropFilter: "blur(24px) saturate(180%)",
+        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+        borderRadius: "28px 28px 0 0",
+        padding: "10px 16px 36px",
+        boxShadow: "0 -8px 40px rgba(20,40,70,0.18)",
+      }}>
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: "#D0DEEE", margin: "0 auto 12px" }} />
+        <div style={{ fontSize: 16, fontWeight: 800, color: "#243B53", textAlign: "center", marginBottom: 6 }}>体重を入力</div>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 2, paddingRight: 56 }}>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 800, color: "#8AA0B8" }}>kg</div>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 800, color: "#8AA0B8" }}>小数</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <DialColumn items={INT_ITEMS} selectedIndex={intIdx} onSelect={setIntIdx} visible={3} />
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#8AA0B8", flexShrink: 0 }}>.</div>
+          <DialColumn items={DEC_ITEMS} selectedIndex={decIdx} onSelect={setDecIdx} visible={3} />
+          <div style={{ fontSize: 16, fontWeight: 800, color: "#8AA0B8", flexShrink: 0, width: 40 }}>kg</div>
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: 32, fontWeight: 800, color: "#243B53", fontVariantNumeric: "tabular-nums", margin: "8px 0 12px" }}>
+          {kg.toFixed(1)}<span style={{ fontSize: 16 }}>kg</span>
+        </div>
+
+        <button
+          onClick={() => { onConfirm(kg); onClose(); }}
+          style={{
+            width: "100%", height: 50, borderRadius: 16, border: "none",
+            background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)",
+            color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer",
+            boxShadow: "0 8px 20px rgba(61,123,255,0.30)",
+          }}>
+          この体重を記録する
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function RecordPage({ store, showToast }: { store: StoreResult; showToast: (m: string) => void }) {
-  const { state, consumed, removeMeal, commitWeight, addMeal } = store;
+  const { state, removeMeal, commitWeightOnDate, addMealOnDate } = store;
 
-  // Weight
-  const [draft, setDraft] = useState(state.weight);
-  const [weightInput, setWeightInput] = useState(state.weight.toFixed(1));
+  // Date navigation
+  const [selectedDate, setSelectedDate] = useState(TODAY);
+  const isToday = selectedDate === TODAY;
+  const canGoForward = selectedDate < TODAY;
 
-  const handleWeightInput = (v: string) => {
-    setWeightInput(v);
-    const n = parseFloat(v);
-    if (!isNaN(n) && n > 0) setDraft(n);
-  };
-  const handleWeightBlur = () => {
-    const n = parseFloat(weightInput);
-    if (!isNaN(n) && n > 0) {
-      setDraft(n);
-      setWeightInput(n.toFixed(1));
-    } else {
-      setWeightInput(draft.toFixed(1));
-    }
-  };
+  // Weight for selected date
+  const weightEntry = state.weightHistory.find((e) => e.d === selectedDate);
+  const displayWeight = weightEntry?.kg ?? state.weight;
 
-  const diff = Math.round((draft - state.weight) * 10) / 10;
-  const toGoal = Math.max(0, Math.round((draft - state.target) * 10) / 10);
+  // Meals for selected date
+  const dateMeals = state.meals.filter((m) => m.date === selectedDate);
+  const dateConsumed = dateMeals.reduce((s, m) => s + m.kcal, 0);
 
-  const handleCommit = () => {
-    commitWeight(draft);
-    showToast("✅ 体重を記録しました！");
-  };
-
-  // Weight dial modal
+  // Weight dial
   const [showWeightDial, setShowWeightDial] = useState(false);
   const handleDialConfirm = (kg: number) => {
-    setDraft(kg);
-    setWeightInput(kg.toFixed(1));
+    commitWeightOnDate(selectedDate, kg);
+    showToast("✅ 体重を記録しました！");
   };
 
   // Meal delete
@@ -141,7 +136,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
   const handleAddFromPhoto = () => {
     const finalKcal = selectedFood.kcal + adjustKcal;
     const ratio = finalKcal / selectedFood.kcal;
-    addMeal({
+    addMealOnDate(selectedDate, {
       type: photoMealType,
       name: selectedFood.name,
       kcal: finalKcal,
@@ -165,7 +160,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
 
   const handleAddManual = () => {
     if (!manualName.trim()) return;
-    addMeal({
+    addMealOnDate(selectedDate, {
       type: manualType,
       name: manualName.trim(),
       kcal: parseInt(manualKcal) || 0,
@@ -193,15 +188,42 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
         <h1 style={{ fontSize: 24, fontWeight: 800, color: "#243B53" }}>きょうの記録</h1>
       </div>
 
+      {/* Date navigation */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "#fff", borderRadius: 20, padding: "10px 16px", marginBottom: 16,
+        boxShadow: "0 4px 14px rgba(61,155,255,0.08)",
+      }}>
+        <button
+          onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+          style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: "#F0F7FF", color: "#3D9BFF", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >‹</button>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{fmtDate(selectedDate)}</div>
+          {!isToday && <div style={{ fontSize: 11, fontWeight: 700, color: "#8AA0B8" }}>{selectedDate}</div>}
+        </div>
+        <button
+          onClick={() => { if (canGoForward) setSelectedDate(addDays(selectedDate, 1)); }}
+          style={{
+            width: 36, height: 36, borderRadius: 12, border: "none",
+            background: canGoForward ? "#F0F7FF" : "#F5F5F5",
+            color: canGoForward ? "#3D9BFF" : "#D0D0D0",
+            fontSize: 18, cursor: canGoForward ? "pointer" : "default",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >›</button>
+      </div>
+
       {/* Weight card */}
       <div style={{
         background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)",
         borderRadius: 26, padding: 20, color: "#fff", textAlign: "center", marginBottom: 20,
         boxShadow: "0 10px 30px rgba(61,123,255,0.30)",
       }}>
-        <div style={{ fontSize: 14, fontWeight: 800, opacity: 0.9, marginBottom: 8 }}>いまの体重</div>
+        <div style={{ fontSize: 14, fontWeight: 800, opacity: 0.9, marginBottom: 8 }}>
+          {isToday ? "いまの体重" : `${fmtDate(selectedDate)}の体重`}
+        </div>
 
-        {/* Tappable weight display → opens dial */}
         <button
           onClick={() => setShowWeightDial(true)}
           style={{
@@ -209,57 +231,65 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
             background: "none", border: "none", cursor: "pointer", width: "100%",
           }}
         >
-          <span style={{
-            fontSize: 60, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1,
-            color: "#fff",
-          }}>
-            {parseFloat(weightInput).toFixed(1)}
+          <span style={{ fontSize: 60, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1, color: "#fff" }}>
+            {displayWeight.toFixed(1)}
           </span>
           <span style={{ fontSize: 22, fontWeight: 800, marginBottom: 10, color: "#fff" }}>kg</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.70)", marginBottom: 12, marginLeft: 2 }}>✎</span>
         </button>
 
-        <div style={{
-          display: "inline-block", background: "rgba(255,255,255,0.22)",
-          borderRadius: 999, padding: "4px 14px", fontSize: 13, fontWeight: 800, marginBottom: 16,
-        }}>
-          {diff === 0
-            ? `🎯 目標まであと ${toGoal}kg！`
-            : diff < 0
-            ? `⬇ ${Math.abs(diff)}kg 入力中`
-            : `⬆ +${diff}kg 入力中`}
-        </div>
+        {weightEntry ? (
+          <div style={{
+            display: "inline-block", background: "rgba(255,255,255,0.22)",
+            borderRadius: 999, padding: "4px 14px", fontSize: 13, fontWeight: 800, marginBottom: 16,
+          }}>
+            ✅ 記録済み
+          </div>
+        ) : (
+          <div style={{
+            display: "inline-block", background: "rgba(255,255,255,0.22)",
+            borderRadius: 999, padding: "4px 14px", fontSize: 13, fontWeight: 800, marginBottom: 16,
+          }}>
+            タップして記録
+          </div>
+        )}
 
         {/* ±0.1 buttons + commit */}
         <div style={{ display: "flex", gap: 8 }}>
           <button
-            onClick={() => { const n = Math.round((draft - 0.1) * 10) / 10; setDraft(n); setWeightInput(n.toFixed(1)); }}
+            onClick={() => {
+              const n = Math.round((displayWeight - 0.1) * 10) / 10;
+              commitWeightOnDate(selectedDate, n);
+            }}
             style={{ flex: 1, height: 50, borderRadius: 16, border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer" }}>−</button>
           <button
-            onClick={handleCommit}
+            onClick={() => { commitWeightOnDate(selectedDate, displayWeight); showToast("✅ 体重を記録しました！"); }}
             style={{ flex: 2, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>記録する</button>
           <button
-            onClick={() => { const n = Math.round((draft + 0.1) * 10) / 10; setDraft(n); setWeightInput(n.toFixed(1)); }}
+            onClick={() => {
+              const n = Math.round((displayWeight + 0.1) * 10) / 10;
+              commitWeightOnDate(selectedDate, n);
+            }}
             style={{ flex: 1, height: 50, borderRadius: 16, border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer" }}>＋</button>
         </div>
       </div>
 
       {/* Meal section header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 16, fontWeight: 800, color: "#243B53" }}>🍽 きょう食べたもの</span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: "#243B53" }}>🍽 {isToday ? "きょう" : fmtDate(selectedDate)}食べたもの</span>
         <span style={{ fontSize: 13, fontWeight: 800, color: "#3D9BFF", fontVariantNumeric: "tabular-nums" }}>
-          {consumed.toLocaleString()} / {state.calTarget.toLocaleString()} kcal
+          {dateConsumed.toLocaleString()} / {state.calTarget.toLocaleString()} kcal
         </span>
       </div>
 
       {/* Meal list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-        {state.meals.length === 0 && (
+        {dateMeals.length === 0 && (
           <div style={{ textAlign: "center", padding: "24px 0", color: "#8AA0B8", fontSize: 14, fontWeight: 700 }}>
             まだ記録がありません
           </div>
         )}
-        {state.meals.map((meal) => (
+        {dateMeals.map((meal) => (
           <div key={meal.id} onClick={() => setDelId(delId === meal.id ? null : meal.id)}
             style={{ background: "#fff", borderRadius: 26, padding: 12, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", cursor: "pointer" }}>
             <div style={{ width: 50, height: 50, borderRadius: 16, background: meal.tone + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
@@ -283,17 +313,9 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
         ))}
       </div>
 
-      {showWeightDial && (
-        <WeightDialModal
-          initial={draft}
-          onConfirm={handleDialConfirm}
-          onClose={() => setShowWeightDial(false)}
-        />
-      )}
-
       {/* Add buttons */}
       <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-        <button onClick={() => { setSheetMode("manual"); }}
+        <button onClick={() => setSheetMode("manual")}
           style={{ flex: 1, height: 60, borderRadius: 20, border: "2.5px solid #46D6B6", background: "#F0FDF9", color: "#2FB39A", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
           ✏️ 手入力で記録
         </button>
@@ -303,10 +325,18 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
         </button>
       </div>
 
+      {/* Weight dial modal */}
+      {showWeightDial && (
+        <WeightDialModal
+          initial={displayWeight}
+          onConfirm={handleDialConfirm}
+          onClose={() => setShowWeightDial(false)}
+        />
+      )}
+
       {/* Sheet backdrop */}
       {sheetMode !== "none" && (
-        <div onClick={closeSheet}
-          style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 40 }} />
+        <div onClick={closeSheet} style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 40 }} />
       )}
 
       {/* Manual input sheet */}
@@ -322,7 +352,6 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
         <div style={{ width: 42, height: 5, borderRadius: 3, background: "#D7E2EF", margin: "0 auto 16px" }} />
         <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53", marginBottom: 16 }}>✏️ 手入力で記録</div>
 
-        {/* Meal type */}
         <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>食事の種類</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {MEAL_TYPES.map((t) => (
@@ -333,7 +362,6 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           ))}
         </div>
 
-        {/* Food name */}
         <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>食べたもの</div>
         <input
           type="text"
@@ -343,7 +371,6 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           style={{ width: "100%", padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF", marginBottom: 14 }}
         />
 
-        {/* Calorie */}
         <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>カロリー（わかる場合）</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <input
@@ -356,7 +383,6 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           <span style={{ fontSize: 14, fontWeight: 800, color: "#8AA0B8" }}>kcal</span>
         </div>
 
-        {/* Emoji picker */}
         <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>アイコン</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
           {["🍽", "🍜", "🍚", "🥗", "🥩", "🐟", "🥛", "🍞", "🍰", "🍎", "☕", "🥤"].map((e) => (
@@ -415,7 +441,6 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
             <div style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 14 }}>
               {[0, 1, 2].map((i) => <span key={i} className="dot" style={{ animationDelay: `${i * 0.18}s` }} />)}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginTop: 16 }}>食材とボリュームを認識中</div>
           </div>
         )}
 
