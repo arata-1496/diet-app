@@ -107,18 +107,25 @@ export async function POST(req: NextRequest) {
   const { record } = (await req.json()) as { record: RecordInput };
   const prompt = buildPrompt(record);
 
-  try {
-    let comment = "";
-    if (process.env.GEMINI_API_KEY) {
-      comment = await callGemini(prompt);
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      comment = await callClaude(prompt);
-    } else {
-      return NextResponse.json({ error: "APIキーが設定されていません。Vercelの環境変数にGEMINI_API_KEYを設定してください。" });
+  // Try Gemini first, fall back to Claude on any error (e.g. 429 credits depleted)
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const comment = await callGemini(prompt);
+      return NextResponse.json({ comment });
+    } catch {
+      // fall through to Claude
     }
-    return NextResponse.json({ comment });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 500 });
   }
+
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      const comment = await callClaude(prompt);
+      return NextResponse.json({ comment });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ error: "APIキーが設定されていません。Vercelの環境変数にANTHROPIC_API_KEYを設定してください。" });
 }
