@@ -12,27 +12,54 @@ const FOODS = [
   { key: "cake", emoji: "🍰", grad: "linear-gradient(135deg,#F7A8C4,#E36A93)", name: "ショートケーキ", kcal: 340, p: 5, f: 18, c: 40, conf: 0.83 },
 ];
 
+const MEAL_TYPES = ["朝食", "昼食", "間食", "夕食"];
+const MEAL_EMOJIS: Record<string, string> = { 朝食: "🌅", 昼食: "🌤", 間食: "🍎", 夕食: "🌙" };
+const MEAL_TONES: Record<string, string> = { 朝食: "#8FBF6E", 昼食: "#E0A23B", 間食: "#C97FB0", 夕食: "#5B8DD6" };
+
+type SheetMode = "none" | "photo" | "manual";
 type PhotoStep = "choose" | "analyzing" | "result";
 
 export default function RecordPage({ store, showToast }: { store: StoreResult; showToast: (m: string) => void }) {
   const { state, consumed, removeMeal, commitWeight, addMeal } = store;
+
+  // Weight
   const [draft, setDraft] = useState(state.weight);
-  const [delId, setDelId] = useState<number | null>(null);
-  const [photoOpen, setPhotoOpen] = useState(false);
-  const [photoStep, setPhotoStep] = useState<PhotoStep>("choose");
-  const [selectedFood, setSelectedFood] = useState(FOODS[0]);
-  const [adjustKcal, setAdjustKcal] = useState(0);
-  const [mealType, setMealType] = useState("昼食");
+  const [weightInput, setWeightInput] = useState(state.weight.toFixed(1));
+
+  const handleWeightInput = (v: string) => {
+    setWeightInput(v);
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 0) setDraft(n);
+  };
+  const handleWeightBlur = () => {
+    const n = parseFloat(weightInput);
+    if (!isNaN(n) && n > 0) {
+      setDraft(n);
+      setWeightInput(n.toFixed(1));
+    } else {
+      setWeightInput(draft.toFixed(1));
+    }
+  };
 
   const diff = Math.round((draft - state.weight) * 10) / 10;
   const toGoal = Math.max(0, Math.round((draft - state.target) * 10) / 10);
 
-  const handleMinus = () => setDraft((d) => Math.round((d - 0.1) * 10) / 10);
-  const handlePlus = () => setDraft((d) => Math.round((d + 0.1) * 10) / 10);
   const handleCommit = () => {
     commitWeight(draft);
     showToast("✅ 体重を記録しました！");
   };
+
+  // Meal delete
+  const [delId, setDelId] = useState<number | null>(null);
+
+  // Sheet
+  const [sheetMode, setSheetMode] = useState<SheetMode>("none");
+
+  // Photo flow
+  const [photoStep, setPhotoStep] = useState<PhotoStep>("choose");
+  const [selectedFood, setSelectedFood] = useState(FOODS[0]);
+  const [adjustKcal, setAdjustKcal] = useState(0);
+  const [photoMealType, setPhotoMealType] = useState("昼食");
 
   const pickFood = (food: typeof FOODS[0]) => {
     setSelectedFood(food);
@@ -42,20 +69,50 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
   };
 
   const handleAddFromPhoto = () => {
+    const finalKcal = selectedFood.kcal + adjustKcal;
+    const ratio = finalKcal / selectedFood.kcal;
     addMeal({
-      type: mealType,
+      type: photoMealType,
       name: selectedFood.name,
-      kcal: selectedFood.kcal + adjustKcal,
+      kcal: finalKcal,
       time: new Date().toTimeString().slice(0, 5),
       emoji: selectedFood.emoji,
-      tone: "#8FBF6E",
-      p: selectedFood.p,
-      f: selectedFood.f,
-      c: selectedFood.c,
+      tone: MEAL_TONES[photoMealType] ?? "#8FBF6E",
+      p: Math.round(selectedFood.p * ratio),
+      f: Math.round(selectedFood.f * ratio),
+      c: Math.round(selectedFood.c * ratio),
     });
-    setPhotoOpen(false);
+    setSheetMode("none");
     setPhotoStep("choose");
     showToast("✅ 食事を追加しました！");
+  };
+
+  // Manual input
+  const [manualType, setManualType] = useState("昼食");
+  const [manualName, setManualName] = useState("");
+  const [manualKcal, setManualKcal] = useState("");
+  const [manualEmoji, setManualEmoji] = useState("🍽");
+
+  const handleAddManual = () => {
+    if (!manualName.trim()) return;
+    addMeal({
+      type: manualType,
+      name: manualName.trim(),
+      kcal: parseInt(manualKcal) || 0,
+      time: new Date().toTimeString().slice(0, 5),
+      emoji: manualEmoji,
+      tone: MEAL_TONES[manualType] ?? "#8AA0B8",
+      p: 0, f: 0, c: 0,
+    });
+    setManualName("");
+    setManualKcal("");
+    setSheetMode("none");
+    showToast("✅ 食事を追加しました！");
+  };
+
+  const closeSheet = () => {
+    setSheetMode("none");
+    setPhotoStep("choose");
   };
 
   return (
@@ -63,74 +120,79 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       {/* Header */}
       <div style={{ paddingTop: 22, paddingBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 22 }}>📝</span>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#243B53" }}>きょうの記録</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#243B53" }}>きょうの記録</h1>
       </div>
 
       {/* Weight card */}
       <div style={{
         background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)",
-        borderRadius: 26,
-        padding: 20,
-        color: "#fff",
-        textAlign: "center",
-        marginBottom: 20,
+        borderRadius: 26, padding: 20, color: "#fff", textAlign: "center", marginBottom: 20,
+        boxShadow: "0 10px 30px rgba(61,123,255,0.30)",
       }}>
-        <div style={{ fontSize: 14, fontWeight: 800, opacity: 0.9, marginBottom: 4 }}>いまの体重</div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4, marginBottom: 10 }}>
-          <span style={{ fontSize: 60, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{draft.toFixed(1)}</span>
-          <span style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>kg</span>
+        <div style={{ fontSize: 14, fontWeight: 800, opacity: 0.9, marginBottom: 8 }}>いまの体重</div>
+
+        {/* Direct number input */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4, marginBottom: 8 }}>
+          <input
+            type="number"
+            step="0.1"
+            value={weightInput}
+            onChange={(e) => handleWeightInput(e.target.value)}
+            onBlur={handleWeightBlur}
+            style={{
+              fontSize: 60, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1,
+              background: "transparent", border: "none", outline: "none", color: "#fff",
+              textAlign: "right", width: 160,
+              WebkitAppearance: "none", MozAppearance: "textfield",
+            } as React.CSSProperties}
+          />
+          <span style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>kg</span>
         </div>
+
         <div style={{
-          display: "inline-block",
-          background: "rgba(255,255,255,0.22)",
-          borderRadius: 999,
-          padding: "4px 14px",
-          fontSize: 13,
-          fontWeight: 800,
-          marginBottom: 16,
+          display: "inline-block", background: "rgba(255,255,255,0.22)",
+          borderRadius: 999, padding: "4px 14px", fontSize: 13, fontWeight: 800, marginBottom: 16,
         }}>
           {diff === 0
             ? `🎯 目標まであと ${toGoal}kg！`
             : diff < 0
-            ? `⬇ ${diff}kg 入力中`
+            ? `⬇ ${Math.abs(diff)}kg 入力中`
             : `⬆ +${diff}kg 入力中`}
         </div>
+
+        {/* ±0.1 buttons + commit */}
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={handleMinus} style={{ flex: 1, height: 50, borderRadius: 16, border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer" }}>−</button>
-          <button onClick={handleCommit} style={{ flex: 2, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>記録する</button>
-          <button onClick={handlePlus} style={{ flex: 1, height: 50, borderRadius: 16, border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer" }}>＋</button>
+          <button
+            onClick={() => { const n = Math.round((draft - 0.1) * 10) / 10; setDraft(n); setWeightInput(n.toFixed(1)); }}
+            style={{ flex: 1, height: 50, borderRadius: 16, border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer" }}>−</button>
+          <button
+            onClick={handleCommit}
+            style={{ flex: 2, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>記録する</button>
+          <button
+            onClick={() => { const n = Math.round((draft + 0.1) * 10) / 10; setDraft(n); setWeightInput(n.toFixed(1)); }}
+            style={{ flex: 1, height: 50, borderRadius: 16, border: "none", background: "rgba(255,255,255,0.22)", color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer" }}>＋</button>
         </div>
       </div>
 
       {/* Meal section header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <span style={{ fontSize: 16, fontWeight: 800, color: "#243B53" }}>🍽 きょう食べたもの</span>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "#3D9BFF", fontVariantNumeric: "tabular-nums" }}>{consumed} / {state.calTarget} kcal</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "#3D9BFF", fontVariantNumeric: "tabular-nums" }}>
+          {consumed.toLocaleString()} / {state.calTarget.toLocaleString()} kcal
+        </span>
       </div>
 
       {/* Meal list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        {state.meals.length === 0 && (
+          <div style={{ textAlign: "center", padding: "24px 0", color: "#8AA0B8", fontSize: 14, fontWeight: 700 }}>
+            まだ記録がありません
+          </div>
+        )}
         {state.meals.map((meal) => (
-          <div
-            key={meal.id}
-            onClick={() => setDelId(delId === meal.id ? null : meal.id)}
-            style={{
-              background: "#fff",
-              borderRadius: 26,
-              padding: 12,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              boxShadow: "0 10px 30px rgba(61,155,255,0.10)",
-              cursor: "pointer",
-            }}
-          >
-            <div style={{
-              width: 50, height: 50, borderRadius: 16,
-              background: meal.tone + "26",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 24, flexShrink: 0,
-            }}>
+          <div key={meal.id} onClick={() => setDelId(delId === meal.id ? null : meal.id)}
+            style={{ background: "#fff", borderRadius: 26, padding: 12, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", cursor: "pointer" }}>
+            <div style={{ width: 50, height: 50, borderRadius: 16, background: meal.tone + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
               {meal.emoji}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -138,176 +200,198 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
               <div style={{ fontSize: 15, fontWeight: 800, color: "#243B53", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meal.name}</div>
             </div>
             {delId === meal.id ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); removeMeal(meal.id); setDelId(null); showToast("🗑 削除しました"); }}
-                style={{ background: "#FF8C8C", color: "#fff", border: "none", borderRadius: 12, height: 40, padding: "0 16px", fontSize: 13, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-              >
+              <button onClick={(e) => { e.stopPropagation(); removeMeal(meal.id); setDelId(null); showToast("🗑 削除しました"); }}
+                style={{ background: "#FF8C8C", color: "#fff", border: "none", borderRadius: 12, height: 40, padding: "0 16px", fontSize: 13, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>
                 削除
               </button>
             ) : (
-              <span style={{ fontSize: 15, fontWeight: 800, color: "#2E7BE0", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{meal.kcal} kcal</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "#2E7BE0", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                {meal.kcal > 0 ? `${meal.kcal} kcal` : "---"}
+              </span>
             )}
           </div>
         ))}
       </div>
 
-      {/* Photo button */}
-      <button
-        onClick={() => { setPhotoOpen(true); setPhotoStep("choose"); }}
-        style={{
-          width: "100%", height: 60, borderRadius: 20,
-          border: "2.5px dashed #3D9BFF",
-          background: "#F0F7FF",
-          color: "#2E7BE0",
-          fontSize: 15, fontWeight: 800,
-          cursor: "pointer",
-          marginBottom: 8,
-        }}
-      >
-        📷 写真でかんたん記録！
-      </button>
+      {/* Add buttons */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+        <button onClick={() => { setSheetMode("manual"); }}
+          style={{ flex: 1, height: 60, borderRadius: 20, border: "2.5px solid #46D6B6", background: "#F0FDF9", color: "#2FB39A", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+          ✏️ 手入力で記録
+        </button>
+        <button onClick={() => { setSheetMode("photo"); setPhotoStep("choose"); }}
+          style={{ flex: 1, height: 60, borderRadius: 20, border: "2.5px dashed #3D9BFF", background: "#F0F7FF", color: "#2E7BE0", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+          📷 写真で記録
+        </button>
+      </div>
 
-      {/* PhotoFlow */}
-      {photoOpen && (
-        <>
-          <div
-            onClick={() => { setPhotoOpen(false); setPhotoStep("choose"); }}
-            style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 100 }}
-          />
-          <div style={{
-            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 101,
-            background: "#fff",
-            borderRadius: "26px 26px 0 0",
-            padding: "24px 18px 40px",
-            transform: "translateY(0)",
-            animation: "slideUp .34s cubic-bezier(.2,.8,.2,1) both",
-          }}>
-            <style>{`@keyframes slideUp { from { transform:translateY(110%) } to { transform:translateY(0) } }`}</style>
-
-            {photoStep === "choose" && (
-              <>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53", marginBottom: 4 }}>📷 写真で記録</div>
-                <div style={{ fontSize: 13, color: "#8AA0B8", marginBottom: 20 }}>写真を選ぶとAIがカロリーを推定します</div>
-                <button
-                  onClick={() => { const f = FOODS[Math.floor(Math.random() * FOODS.length)]; pickFood(f); }}
-                  style={{
-                    width: "100%", height: 60, borderRadius: 20,
-                    border: "2.5px dashed #3D9BFF", background: "#F0F7FF",
-                    color: "#2E7BE0", fontSize: 15, fontWeight: 800,
-                    cursor: "pointer", marginBottom: 16,
-                  }}
-                >
-                  📸 カメラで撮影する
-                </button>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginBottom: 10 }}>ライブラリから選ぶ</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-                  {FOODS.map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => pickFood(f)}
-                      style={{
-                        aspectRatio: "1", borderRadius: 18,
-                        background: f.grad, border: "none",
-                        fontSize: 38, cursor: "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}
-                    >
-                      {f.emoji}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {photoStep === "analyzing" && (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{
-                  width: 150, height: 150, borderRadius: 26,
-                  background: selectedFood.grad,
-                  margin: "0 auto 20px",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  position: "relative", overflow: "hidden",
-                  fontSize: 78,
-                }}>
-                  {selectedFood.emoji}
-                  <div className="scanline" />
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53", marginBottom: 12 }}>AIが解析しています…</div>
-                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 10 }}>
-                  <span className="dot" style={{ animationDelay: "0s" }} />
-                  <span className="dot" style={{ animationDelay: "0.18s" }} />
-                  <span className="dot" style={{ animationDelay: "0.36s" }} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8" }}>食材とボリュームを認識中</div>
-              </div>
-            )}
-
-            {photoStep === "result" && (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                  <div style={{ width: 76, height: 76, borderRadius: 18, background: selectedFood.grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, flexShrink: 0 }}>
-                    {selectedFood.emoji}
-                  </div>
-                  <div>
-                    <div style={{ background: "#E2FBF4", color: "#2FB39A", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 800, display: "inline-block", marginBottom: 4 }}>
-                      ✨ AI推定 · 確度 {Math.round(selectedFood.conf * 100)}%
-                    </div>
-                    <div style={{ fontSize: 19, fontWeight: 800, color: "#243B53" }}>{selectedFood.name}</div>
-                  </div>
-                </div>
-
-                {/* Calorie adjust */}
-                <div style={{ background: "#F0F7FF", borderRadius: 20, padding: "12px 16px", marginBottom: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <button onClick={() => setAdjustKcal((k) => k - 10)} style={{ border: "none", background: "none", fontSize: 22, fontWeight: 800, color: "#3D9BFF", cursor: "pointer" }}>−10</button>
-                    <span style={{ fontSize: 40, fontWeight: 800, color: "#2E7BE0", fontVariantNumeric: "tabular-nums" }}>{selectedFood.kcal + adjustKcal}</span>
-                    <button onClick={() => setAdjustKcal((k) => k + 10)} style={{ border: "none", background: "none", fontSize: 22, fontWeight: 800, color: "#3D9BFF", cursor: "pointer" }}>+10</button>
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[
-                      { label: `P ${selectedFood.p}g`, color: "#3D9BFF" },
-                      { label: `F ${selectedFood.f}g`, color: "#FFC24B" },
-                      { label: `C ${selectedFood.c}g`, color: "#46D6B6" },
-                    ].map((chip) => (
-                      <div key={chip.label} style={{ background: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 800, color: chip.color }}>{chip.label}</div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Meal type */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                  {["朝食", "昼食", "間食", "夕食"].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setMealType(t)}
-                      style={{
-                        flex: 1, height: 42, borderRadius: 14, border: mealType === t ? "2px solid #3D9BFF" : "2px solid transparent",
-                        background: mealType === t ? "#F0F7FF" : "#fff",
-                        color: mealType === t ? "#3D9BFF" : "#8AA0B8",
-                        fontSize: 13, fontWeight: 800, cursor: "pointer",
-                      }}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={handleAddFromPhoto}
-                  style={{
-                    width: "100%", height: 52, borderRadius: 16, border: "none",
-                    background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)",
-                    boxShadow: "0 10px 24px rgba(61,123,255,0.35)",
-                    color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer",
-                  }}
-                >
-                  この内容で追加する
-                </button>
-              </>
-            )}
-          </div>
-        </>
+      {/* Sheet backdrop */}
+      {sheetMode !== "none" && (
+        <div onClick={closeSheet}
+          style={{ position: "fixed", inset: 0, background: "rgba(20,40,70,0.32)", zIndex: 40 }} />
       )}
+
+      {/* Manual input sheet */}
+      <div style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
+        background: "#fff", borderRadius: "28px 28px 0 0",
+        padding: "10px 20px 36px",
+        boxShadow: "0 -10px 40px rgba(20,40,70,0.2)",
+        transform: sheetMode === "manual" ? "translateY(0)" : "translateY(110%)",
+        transition: "transform .34s cubic-bezier(.2,.8,.2,1)",
+        maxHeight: "80vh", overflowY: "auto",
+      }}>
+        <div style={{ width: 42, height: 5, borderRadius: 3, background: "#D7E2EF", margin: "0 auto 16px" }} />
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53", marginBottom: 16 }}>✏️ 手入力で記録</div>
+
+        {/* Meal type */}
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>食事の種類</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {MEAL_TYPES.map((t) => (
+            <button key={t} onClick={() => setManualType(t)}
+              style={{ flex: 1, height: 42, borderRadius: 14, border: manualType === t ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: manualType === t ? "#F0F7FF" : "#fff", color: manualType === t ? "#2E7BE0" : "#8AA0B8", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              {MEAL_EMOJIS[t]} {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Food name */}
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>食べたもの</div>
+        <input
+          type="text"
+          placeholder="例：ご飯・味噌汁・焼き魚"
+          value={manualName}
+          onChange={(e) => setManualName(e.target.value)}
+          style={{ width: "100%", padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF", marginBottom: 14 }}
+        />
+
+        {/* Calorie */}
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>カロリー（わかる場合）</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <input
+            type="number"
+            placeholder="500"
+            value={manualKcal}
+            onChange={(e) => setManualKcal(e.target.value)}
+            style={{ flex: 1, padding: "12px 16px", borderRadius: 14, border: "1.5px solid #E3EDF8", outline: "none", fontSize: 15, fontWeight: 700, color: "#243B53", background: "#F8FBFF" }}
+          />
+          <span style={{ fontSize: 14, fontWeight: 800, color: "#8AA0B8" }}>kcal</span>
+        </div>
+
+        {/* Emoji picker */}
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>アイコン</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+          {["🍽", "🍜", "🍚", "🥗", "🥩", "🐟", "🥛", "🍞", "🍰", "🍎", "☕", "🥤"].map((e) => (
+            <button key={e} onClick={() => setManualEmoji(e)}
+              style={{ width: 44, height: 44, borderRadius: 14, border: manualEmoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: manualEmoji === e ? "#F0F7FF" : "#fff", fontSize: 22, cursor: "pointer" }}>
+              {e}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={handleAddManual} disabled={!manualName.trim()}
+          style={{ width: "100%", height: 56, borderRadius: 18, border: "none", background: manualName.trim() ? "linear-gradient(135deg,#4EA6FF,#3D7BFF)" : "#E3EDF8", color: manualName.trim() ? "#fff" : "#B0C4D8", fontSize: 16, fontWeight: 800, cursor: manualName.trim() ? "pointer" : "not-allowed", boxShadow: manualName.trim() ? "0 8px 20px rgba(61,123,255,0.30)" : "none" }}>
+          追加する
+        </button>
+      </div>
+
+      {/* Photo flow sheet */}
+      <div style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
+        background: "#fff", borderRadius: "28px 28px 0 0",
+        padding: "10px 20px 36px",
+        boxShadow: "0 -10px 40px rgba(20,40,70,0.2)",
+        transform: sheetMode === "photo" ? "translateY(0)" : "translateY(110%)",
+        transition: "transform .34s cubic-bezier(.2,.8,.2,1)",
+        maxHeight: "85vh", overflowY: "auto",
+      }}>
+        <div style={{ width: 42, height: 5, borderRadius: 3, background: "#D7E2EF", margin: "0 auto 12px" }} />
+
+        {photoStep === "choose" && (
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53", marginBottom: 4 }}>📷 写真で記録</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginBottom: 16 }}>写真を選ぶとAIがカロリーを推定します</div>
+            <button onClick={() => pickFood(FOODS[Math.floor(Math.random() * FOODS.length)])}
+              style={{ width: "100%", height: 70, borderRadius: 18, border: "2.5px dashed #3D9BFF", background: "#F0F7FF", color: "#2E7BE0", fontSize: 15, fontWeight: 800, marginBottom: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <span style={{ fontSize: 24 }}>📸</span> カメラで撮影する
+            </button>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 10 }}>ライブラリから選ぶ</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {FOODS.map((f) => (
+                <button key={f.key} onClick={() => pickFood(f)}
+                  style={{ aspectRatio: "1", borderRadius: 18, border: "none", background: f.grad, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, boxShadow: "0 6px 16px rgba(20,40,70,0.14)" }}>
+                  {f.emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {photoStep === "analyzing" && (
+          <div style={{ padding: "20px 0 30px", textAlign: "center" }}>
+            <div style={{ width: 150, height: 150, borderRadius: 26, margin: "0 auto", background: selectedFood.grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 78, position: "relative", overflow: "hidden" }}>
+              {selectedFood.emoji}
+              <div className="scanline" />
+            </div>
+            <div style={{ marginTop: 22, fontSize: 18, fontWeight: 800, color: "#243B53" }}>AIが解析しています…</div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 14 }}>
+              {[0, 1, 2].map((i) => <span key={i} className="dot" style={{ animationDelay: `${i * 0.18}s` }} />)}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginTop: 16 }}>食材とボリュームを認識中</div>
+          </div>
+        )}
+
+        {photoStep === "result" && (
+          <div>
+            <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16 }}>
+              <div style={{ width: 76, height: 76, borderRadius: 20, background: selectedFood.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>{selectedFood.emoji}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#E2FBF4", color: "#2FB39A", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, marginBottom: 6, whiteSpace: "nowrap" }}>
+                  ✨ AI推定 · 確度 {Math.round(selectedFood.conf * 100)}%
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{selectedFood.name}</div>
+              </div>
+            </div>
+
+            <div style={{ background: "#F0F7FF", borderRadius: 20, padding: "16px 18px", marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>推定カロリー（調整できます）</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <button onClick={() => setAdjustKcal((k) => k - 10)}
+                  style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 24, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(61,155,255,0.16)" }}>−</button>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                  <span style={{ fontSize: 40, fontWeight: 800, color: "#2E7BE0", fontVariantNumeric: "tabular-nums" }}>{selectedFood.kcal + adjustKcal}</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#8AA0B8" }}>kcal</span>
+                </div>
+                <button onClick={() => setAdjustKcal((k) => k + 10)}
+                  style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 24, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(61,155,255,0.16)" }}>＋</button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {[["P", selectedFood.p, "#46D6B6"], ["F", selectedFood.f, "#FFB03A"], ["C", selectedFood.c, "#3D9BFF"]].map(([k, v, col]) => (
+                  <div key={k as string} style={{ flex: 1, background: "#fff", borderRadius: 12, padding: "8px 0", textAlign: "center" }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: col as string }}>{k}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#243B53" }}>{Math.round((v as number) * ((selectedFood.kcal + adjustKcal) / selectedFood.kcal))}<span style={{ fontSize: 10, color: "#8AA0B8" }}>g</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>どの食事？</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+              {MEAL_TYPES.map((t) => (
+                <button key={t} onClick={() => setPhotoMealType(t)}
+                  style={{ flex: 1, height: 42, borderRadius: 14, border: photoMealType === t ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: photoMealType === t ? "#F0F7FF" : "#fff", color: photoMealType === t ? "#2E7BE0" : "#8AA0B8", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <button onClick={handleAddFromPhoto}
+              style={{ width: "100%", height: 56, borderRadius: 18, border: "none", background: "linear-gradient(135deg,#4EA6FF,#3D7BFF)", color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 10px 24px rgba(61,123,255,0.35)" }}>
+              この内容で追加する
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

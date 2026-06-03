@@ -9,92 +9,116 @@ interface MealItem {
   c?: number;
 }
 
-interface RequestBody {
-  record: {
-    date?: string;
-    weight?: number;
-    meals?: MealItem[];
-    persona?: string;
-    focus?: string[];
-  };
+interface RecordInput {
+  date?: string;
+  weight?: number;
+  target?: number;
+  meals?: MealItem[];
+  totalKcal?: number;
+  calTarget?: number;
+  macros?: { p: number; f: number; c: number };
+  persona?: string;
+  focus?: string[];
 }
 
-function buildContext(record: RequestBody["record"]): string {
-  const lines: string[] = [];
+const PERSONA_PROMPTS: Record<string, string> = {
+  coach:   "あなたは優しく励ます応援型のダイエットコーチです。温かい言葉で背中を押してください。",
+  spartan: "あなたは厳しく結果を追求するスパルタトレーナーです。甘えを許さず、辛口に直言してください。",
+  friend:  "あなたはフレンドリーな友達です。タメ口で気軽に、明るくアドバイスしてください。",
+  expert:  "あなたはデータ重視の栄養・運動の専門家です。数値を使って科学的・客観的に分析してください。",
+};
+
+const FOCUS_LABELS: Record<string, string> = {
+  fat: "脂質を減らす", protein: "タンパク質を増やす",
+  snack: "間食を控える", exercise: "運動の提案", plateau: "停滞期の対策",
+};
+
+function buildPrompt(record: RecordInput): string {
+  const persona = record.persona ?? "coach";
+  const personaInstruction = PERSONA_PROMPTS[persona] ?? PERSONA_PROMPTS.coach;
+  const focusStr = record.focus?.length
+    ? record.focus.map((f) => FOCUS_LABELS[f] ?? f).join("、")
+    : "なし";
+
+  const lines = [
+    personaInstruction,
+    "",
+    "以下の今日のダイエット記録を分析し、JSON形式で回答してください。",
+    "",
+    "【今日の記録】",
+  ];
+
   if (record.date) lines.push(`日付: ${record.date}`);
-  if (record.weight) lines.push(`体重: ${record.weight} kg`);
-  if (record.persona) lines.push(`AIペルソナ: ${record.persona}`);
-  if (record.focus?.length) lines.push(`重点テーマ: ${record.focus.join(", ")}`);
+  if (record.weight) lines.push(`現在の体重: ${record.weight} kg`);
+  if (record.target) lines.push(`目標体重: ${record.target} kg`);
+  if (record.totalKcal != null) lines.push(`摂取カロリー合計: ${record.totalKcal} kcal`);
+  if (record.calTarget) lines.push(`目標カロリー: ${record.calTarget} kcal`);
+  if (record.macros) lines.push(`PFC: タンパク質${record.macros.p}g / 脂質${record.macros.f}g / 炭水化物${record.macros.c}g`);
+  lines.push(`重点テーマ: ${focusStr}`);
 
   if (record.meals?.length) {
-    lines.push("\n食事内容:");
+    lines.push("", "【食事】");
     for (const m of record.meals) {
-      const line = `${m.type ?? ""}: ${m.name ?? ""} (${m.kcal ?? 0}kcal, P:${m.p ?? 0}g F:${m.f ?? 0}g C:${m.c ?? 0}g)`;
-      lines.push(line);
+      lines.push(`${m.type}: ${m.name} (${m.kcal ?? 0}kcal)`);
     }
-    const total = record.meals.reduce((s, m) => s + (m.kcal ?? 0), 0);
-    lines.push(`\n合計カロリー: ${total} kcal`);
+  } else {
+    lines.push("", "食事: 未記録");
   }
+
+  lines.push(
+    "",
+    "【回答形式】以下のJSONのみを返してください（他の文字は不要）:",
+    `{
+  "greet": "一言挨拶（20文字以内）",
+  "summary": "総評（150文字以内、ペルソナの口調で）",
+  "score": 総合スコア（0〜100の整数）,
+  "pts": [
+    {"good": true, "text": "良かった点1（50文字以内）"},
+    {"good": true, "text": "良かった点2（50文字以内）"},
+    {"good": false, "text": "改善点1（50文字以内）"},
+    {"good": false, "text": "改善点2（50文字以内）"}
+  ]
+}`
+  );
 
   return lines.join("\n");
 }
 
-const SYSTEM_PROMPT = `あなたはダイエットアドバイザーです。ユーザーの1日の記録を見て、以下の観点で日本語で簡潔にアドバイスしてください：
-- 食事バランス（栄養の偏りや不足）
-- カロリーの過不足
-- 体重変化に関する一言（記録がある場合）
-- 明日以降の改善提案を1〜2点
-
-300文字以内で、親しみやすいトーンで答えてください。絵文字を適度に使ってください。`;
-
-async function callClaude(record: RequestBody["record"]): Promise<string> {
-  const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const msg = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 600,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildContext(record) }],
-  });
-
-  return msg.content[0].type === "text" ? msg.content[0].text : "";
-}
-
-async function callGemini(record: RequestBody["record"]): Promise<string> {
+async function callGemini(prompt: string): Promise<string> {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
-
-  const result = await model.generateContent(
-    `${SYSTEM_PROMPT}\n\n---\n${buildContext(record)}`
-  );
+  const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
+async function callClaude(prompt: string): Promise<string> {
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const msg = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 800,
+    messages: [{ role: "user", content: prompt }],
+  });
+  return msg.content[0].type === "text" ? msg.content[0].text : "";
+}
+
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as RequestBody;
-  const { record } = body;
+  const { record } = (await req.json()) as { record: RecordInput };
+  const prompt = buildPrompt(record);
 
-  let comment = "";
-
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      comment = await callGemini(record);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ comment: `❌ Gemini APIエラー: ${msg}` }, { status: 200 });
+  try {
+    let comment = "";
+    if (process.env.GEMINI_API_KEY) {
+      comment = await callGemini(prompt);
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      comment = await callClaude(prompt);
+    } else {
+      return NextResponse.json({ error: "APIキーが設定されていません。Vercelの環境変数にGEMINI_API_KEYを設定してください。" });
     }
-  } else if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      comment = await callClaude(record);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ comment: `❌ Claude APIエラー: ${msg}` }, { status: 200 });
-    }
-  } else {
-    return NextResponse.json({ comment: "APIキーが設定されていません。" });
+    return NextResponse.json({ comment });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  return NextResponse.json({ comment });
 }
