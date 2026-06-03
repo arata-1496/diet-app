@@ -97,8 +97,15 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
 
   // Date navigation
   const [selectedDate, setSelectedDate] = useState(TODAY);
+  const [slideClass, setSlideClass] = useState("");
   const isToday = selectedDate === TODAY;
   const canGoForward = selectedDate < TODAY;
+
+  const changeDate = (newDate: string, dir: "left" | "right") => {
+    setSlideClass(dir === "left" ? "slide-from-right" : "slide-from-left");
+    setSelectedDate(newDate);
+    setTimeout(() => setSlideClass(""), 240);
+  };
 
   // Weight for selected date
   const weightEntry = state.weightHistory.find((e) => e.d === selectedDate);
@@ -176,19 +183,19 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
     showToast("✅ 食事を追加しました！");
   };
 
-  // Swipe for date navigation
+  // Full-screen swipe for date navigation
   const swipeStartX = useRef<number | null>(null);
-  const onSwipeStart = (e: React.TouchEvent) => { swipeStartX.current = e.touches[0].clientX; };
+  const onSwipeStart = (e: React.TouchEvent) => {
+    if (sheetMode !== "none" || showWeightDial) return;
+    swipeStartX.current = e.touches[0].clientX;
+  };
   const onSwipeEnd = (e: React.TouchEvent) => {
     if (swipeStartX.current === null) return;
     const dx = e.changedTouches[0].clientX - swipeStartX.current;
     swipeStartX.current = null;
-    if (Math.abs(dx) < 40) return;
-    if (dx < 0) { // swipe left → go to next (forward)
-      if (canGoForward) setSelectedDate(addDays(selectedDate, 1));
-    } else { // swipe right → go back
-      setSelectedDate(addDays(selectedDate, -1));
-    }
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0 && canGoForward) changeDate(addDays(selectedDate, 1), "left");
+    else if (dx > 0) changeDate(addDays(selectedDate, -1), "right");
   };
 
   const closeSheet = () => {
@@ -197,7 +204,10 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
   };
 
   return (
-    <div style={{ padding: "0 18px", paddingBottom: 24 }}>
+    <div
+      onTouchStart={onSwipeStart}
+      onTouchEnd={onSwipeEnd}
+      style={{ padding: "0 18px", paddingBottom: 24 }}>
       {/* Header */}
       <div style={{ paddingTop: 22, paddingBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 22 }}>📝</span>
@@ -205,34 +215,35 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       </div>
 
       {/* Date navigation */}
-      <div
-        onTouchStart={onSwipeStart}
-        onTouchEnd={onSwipeEnd}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: "#fff", borderRadius: 20, padding: "10px 16px", marginBottom: 16,
-          boxShadow: "0 4px 14px rgba(61,155,255,0.08)",
-        }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "#fff", borderRadius: 20, padding: "10px 16px", marginBottom: 16,
+        boxShadow: "0 4px 14px rgba(61,155,255,0.08)",
+      }}>
         <button
-          onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+          onClick={() => changeDate(addDays(selectedDate, -1), "right")}
           style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: "#F0F7FF", color: "#3D9BFF", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
         >‹</button>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        {/* Fixed-height center: always same size whether today or not */}
+        <div className={slideClass} style={{ textAlign: "center", minWidth: 120 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{fmtDate(selectedDate)}</div>
             {isToday && (
               <div style={{ fontSize: 11, fontWeight: 800, color: "#3D9BFF", background: "#EEF6FF", borderRadius: 999, padding: "2px 8px" }}>今日</div>
             )}
           </div>
-          {!isToday && (
-            <button
-              onClick={() => setSelectedDate(TODAY)}
-              style={{ fontSize: 11, fontWeight: 800, color: "#3D9BFF", background: "none", border: "none", cursor: "pointer", padding: "2px 0", marginTop: 2 }}
-            >今日に戻る</button>
-          )}
+          {/* Always rendered, invisible when today → prevents height shift */}
+          <button
+            onClick={() => changeDate(TODAY, "left")}
+            style={{
+              fontSize: 11, fontWeight: 800, color: "#3D9BFF",
+              background: "none", border: "none", cursor: "pointer", padding: "2px 0", marginTop: 2,
+              visibility: isToday ? "hidden" : "visible",
+            }}
+          >今日に戻る ›</button>
         </div>
         <button
-          onClick={() => { if (canGoForward) setSelectedDate(addDays(selectedDate, 1)); }}
+          onClick={() => { if (canGoForward) changeDate(addDays(selectedDate, 1), "left"); }}
           style={{
             width: 36, height: 36, borderRadius: 12, border: "none",
             background: canGoForward ? "#F0F7FF" : "#F5F5F5",
@@ -242,6 +253,9 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           }}
         >›</button>
       </div>
+
+      {/* Animated content area */}
+      <div className={slideClass}>
 
       {/* Weight card */}
       <div style={{
@@ -353,6 +367,8 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           📷 写真で記録
         </button>
       </div>
+
+      </div> {/* end animated content */}
 
       {/* Weight dial modal */}
       {showWeightDial && (
