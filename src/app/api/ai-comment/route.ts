@@ -112,8 +112,12 @@ export async function POST(req: NextRequest) {
     try {
       const comment = await callGemini(prompt);
       return NextResponse.json({ comment });
-    } catch {
-      // fall through to Claude
+    } catch (e) {
+      const geminiErr = e instanceof Error ? e.message : String(e);
+      // If no Claude fallback, return Gemini error for debugging
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return NextResponse.json({ error: `Gemini error: ${geminiErr}` }, { status: 500 });
+      }
     }
   }
 
