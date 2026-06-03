@@ -3,6 +3,9 @@
 import { useState, useRef } from "react";
 import { StoreResult, TODAY, Meal } from "@/lib/store";
 import DialColumn from "./DialColumn";
+// @ts-ignore
+import { FoodTile, FOOD_CATEGORIES, FOOD_ICONS, foodLabel } from "./FoodIcons";
+import { MealEmoji, getMealBg } from "./MealEmoji";
 
 const INT_ITEMS = Array.from({ length: 171 }, (_, i) => String(i + 30)); // 30–200
 const DEC_ITEMS = Array.from({ length: 10 }, (_, i) => String(i));
@@ -20,27 +23,6 @@ const MEAL_TYPES = ["朝食", "昼食", "間食", "夕食"];
 const MEAL_EMOJIS: Record<string, string> = { 朝食: "🌅", 昼食: "🌤", 間食: "🍎", 夕食: "🌙" };
 const MEAL_TONES: Record<string, string> = { 朝食: "#8FBF6E", 昼食: "#E0A23B", 間食: "#C97FB0", 夕食: "#5B8DD6" };
 
-const ALL_EMOJIS = [
-  // 和食
-  "🍚","🍙","🍘","🍱","🍛","🍜","🍝","🍲","🍣","🍤","🍥","🥮",
-  "🍢","🍡","🥟","🥠","🥡","🍠","🫙","🧆","🥘","🫕",
-  // 洋食・ファストフード
-  "🍔","🍟","🌭","🍕","🌮","🌯","🥙","🫔","🥪","🥗","🧀",
-  "🍗","🍖","🥩","🥓","🥚","🍳","🥞","🧇","🍞","🥐","🥖","🫓","🥨","🥯",
-  // 魚介・肉
-  "🐟","🦐","🦑","🦀","🦞","🦪","🥣",
-  // スイーツ・デザート
-  "🍰","🎂","🧁","🥧","🍩","🍪","🍫","🍬","🍭","🍮","🍯",
-  "🍦","🍧","🍨","🍡","🍢",
-  // フルーツ（食事として食べるもの）
-  "🍎","🍊","🍋","🍇","🍓","🫐","🍑","🍒","🥝","🍌","🍉","🥭",
-  "🍐","🍏","🍈","🥥","🍍","🫒",
-  // 飲み物
-  "🥛","☕","🍵","🫖","🧋","🥤","🧃","🍶","🍺","🍷","🍸","🍹",
-  "🥂","🍾","🥃","🫗","🍼",
-  // その他
-  "🍿","🧈","🫙","🍽",
-];
 
 type SheetMode = "none" | "photo" | "manual";
 type PhotoStep = "choose" | "analyzing" | "result";
@@ -186,7 +168,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
   const [manualType, setManualType] = useState("昼食");
   const [manualName, setManualName] = useState("");
   const [manualKcal, setManualKcal] = useState("");
-  const [manualEmoji, setManualEmoji] = useState("🍽");
+  const [manualEmoji, setManualEmoji] = useState("rice");
   const [manualTime, setManualTime] = useState(() => new Date().toTimeString().slice(0, 5));
 
   const handleAddManual = () => {
@@ -197,7 +179,7 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
       kcal: parseInt(manualKcal) || 0,
       time: manualTime,
       emoji: manualEmoji,
-      tone: MEAL_TONES[manualType] ?? "#8AA0B8",
+      tone: FOOD_ICONS?.[manualEmoji]?.tint ?? MEAL_TONES[manualType] ?? "#8AA0B8",
       p: 0, f: 0, c: 0,
     });
     setManualName("");
@@ -357,8 +339,8 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
         {dateMeals.map((meal) => (
           <div key={meal.id} onClick={() => setDelId(delId === meal.id ? null : meal.id)}
             style={{ background: "#fff", borderRadius: 26, padding: 12, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 10px 30px rgba(61,155,255,0.10)", cursor: "pointer" }}>
-            <div style={{ width: 50, height: 50, borderRadius: 16, background: meal.tone + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
-              {meal.emoji}
+            <div style={{ width: 50, height: 50, borderRadius: 16, background: getMealBg(meal.emoji, meal.tone), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+              <MealEmoji emoji={meal.emoji} size={34} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8" }}>{meal.type} · {meal.time}</div>
@@ -464,13 +446,18 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           </div>
         </div>
 
-        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>アイコン</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
-          {ALL_EMOJIS.map((e) => (
-            <button key={e} onClick={() => setManualEmoji(e)}
-              style={{ width: 42, height: 42, borderRadius: 12, border: manualEmoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: manualEmoji === e ? "#F0F7FF" : "#fff", fontSize: 20, cursor: "pointer" }}>
-              {e}
-            </button>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 10 }}>アイコン</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+          {FOOD_CATEGORIES.map((cat: { name: string; keys: string[] }) => (
+            <div key={cat.name}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#B7C6D8", marginBottom: 8 }}>{cat.name}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {cat.keys.map((key: string) => (
+                  <FoodTile key={key} name={key} size={36} tile={56} radius={16}
+                    selected={manualEmoji === key} onClick={setManualEmoji} showLabel />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 

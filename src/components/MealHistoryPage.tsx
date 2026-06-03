@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { StoreResult, Meal } from "@/lib/store";
+// @ts-ignore
+import { FoodTile, FOOD_CATEGORIES, FOOD_ICONS } from "./FoodIcons";
+import { MealEmoji, getMealBg } from "./MealEmoji";
 
 const MEAL_TYPES = ["朝食", "昼食", "間食", "夕食"];
 const MEAL_EMOJIS: Record<string, string> = { 朝食: "🌅", 昼食: "🌤", 間食: "🍎", 夕食: "🌙" };
@@ -43,27 +46,6 @@ function EditMealSheet({ meal, onSave, onClose }: {
     onClose();
   };
 
-  const EMOJIS = [
-    // 和食
-    "🍚","🍙","🍘","🍱","🍛","🍜","🍝","🍲","🍣","🍤","🍥","🥮",
-    "🍢","🍡","🥟","🥠","🥡","🍠","🧆","🥘","🫕",
-    // 洋食・ファストフード
-    "🍔","🍟","🌭","🍕","🌮","🌯","🥙","🫔","🥪","🥗","🧀",
-    "🍗","🍖","🥩","🥓","🥚","🍳","🥞","🧇","🍞","🥐","🥖","🫓","🥨","🥯",
-    // 魚介・肉
-    "🐟","🦐","🦑","🦀","🦞","🦪","🥣",
-    // スイーツ・デザート
-    "🍰","🎂","🧁","🥧","🍩","🍪","🍫","🍬","🍭","🍮","🍯",
-    "🍦","🍧","🍨","🍡","🍢",
-    // フルーツ
-    "🍎","🍊","🍋","🍇","🍓","🫐","🍑","🍒","🥝","🍌","🍉","🥭",
-    "🍐","🍏","🍈","🥥","🍍","🫒",
-    // 飲み物
-    "🥛","☕","🍵","🫖","🧋","🥤","🧃","🍶","🍺","🍷","🍸","🍹",
-    "🥂","🍾","🥃","🫗","🍼",
-    // その他
-    "🍿","🧈","🫙","🍽",
-  ];
 
   return (
     <>
@@ -123,14 +105,19 @@ function EditMealSheet({ meal, onSave, onClose }: {
           </div>
         </div>
 
-        {/* Emoji picker */}
-        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 8 }}>アイコン</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 24 }}>
-          {EMOJIS.map((e) => (
-            <button key={e} onClick={() => setEmoji(e)}
-              style={{ width: 42, height: 42, borderRadius: 12, border: emoji === e ? "2px solid #3D9BFF" : "2px solid #E3EDF8", background: emoji === e ? "#F0F7FF" : "#fff", fontSize: 20, cursor: "pointer" }}>
-              {e}
-            </button>
+        {/* Icon picker */}
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 10 }}>アイコン</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 24 }}>
+          {FOOD_CATEGORIES.map((cat: { name: string; keys: string[] }) => (
+            <div key={cat.name}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#B7C6D8", marginBottom: 8 }}>{cat.name}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {cat.keys.map((key: string) => (
+                  <FoodTile key={key} name={key} size={36} tile={56} radius={16}
+                    selected={emoji === key} onClick={setEmoji} showLabel />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 
@@ -223,9 +210,9 @@ export default function MealHistoryPage({ store, showToast }: { store: StoreResu
                         display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
                         borderBottom: idx < meals.length - 1 ? "1px solid #F0F7FF" : "none",
                       }}>
-                        {/* Emoji */}
-                        <div style={{ width: 44, height: 44, borderRadius: 14, background: meal.tone + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                          {meal.emoji}
+                        {/* Icon */}
+                        <div style={{ width: 44, height: 44, borderRadius: 14, background: getMealBg(meal.emoji, meal.tone), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                          <MealEmoji emoji={meal.emoji} size={30} />
                         </div>
 
                         {/* Info */}
