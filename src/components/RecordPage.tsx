@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { StoreResult, TODAY } from "@/lib/store";
+import { StoreResult, TODAY, Meal } from "@/lib/store";
 import DialColumn from "./DialColumn";
 
 const INT_ITEMS = Array.from({ length: 171 }, (_, i) => String(i + 30)); // 30–200

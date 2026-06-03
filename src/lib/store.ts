@@ -88,6 +88,7 @@ export interface StoreResult {
   addMeal: (m: Omit<Meal, "id">) => void;
   addMealOnDate: (date: string, m: Omit<Meal, "id" | "date">) => void;
   removeMeal: (id: number) => void;
+  editMeal: (id: number, updates: Partial<Omit<Meal, "id">>) => void;
   setPersona: (p: State["persona"]) => void;
   toggleFocus: (id: string) => void;
   setTarget: (v: number) => void;
@@ -141,6 +142,9 @@ export function useStore(): StoreResult {
     },
     removeMeal: (id) => {
       update({ ...state, meals: state.meals.filter((m) => m.id !== id) });
+    },
+    editMeal: (id, updates) => {
+      update({ ...state, meals: state.meals.map((m) => m.id === id ? { ...m, ...updates } : m) });
     },
     setPersona: (p) => update({ ...state, persona: p }),
     toggleFocus: (id) => {
