@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import RecordPage from "@/components/RecordPage";
 import GraphPage from "@/components/GraphPage";
@@ -29,11 +29,11 @@ export default function Home() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#E9F3FF", overflow: "hidden", position: "relative" }}>
+    <div className="app-root">
       {/* Toast */}
       <div style={{
         position: "absolute",
-        top: toastVisible ? 70 : -60,
+        top: toastVisible ? "calc(env(safe-area-inset-top) + 16px)" : "-60px",
         left: "50%",
         transform: "translateX(-50%)",
         background: "#243B53",
@@ -51,71 +51,56 @@ export default function Home() {
       </div>
 
       {/* Page content */}
-      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+      <div className="app-content">
         {tab === "rec" && <RecordPage store={store} showToast={showToast} />}
         {tab === "gph" && <GraphPage store={store} />}
         {tab === "ai" && <AIPage store={store} showToast={showToast} />}
         {tab === "set" && <SettingsPage store={store} showToast={showToast} />}
       </div>
 
-      {/* TabBar */}
-      <div style={{
-        margin: "0 14px",
-        marginBottom: 8,
-        background: "#fff",
-        borderRadius: 24,
-        height: 66,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-around",
-        boxShadow: "0 8px 28px rgba(61,155,255,0.16)",
-        flexShrink: 0,
-        paddingLeft: 6,
-        paddingRight: 6,
-      }}>
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 2,
-                flex: 1,
-                border: "none",
-                cursor: "pointer",
-                background: "none",
-                padding: 0,
-              }}
-            >
-              <div style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 2,
-                width: 44,
-                height: 34,
-                borderRadius: 14,
-                background: active ? "#3D9BFF" : "transparent",
-              }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#B7C6D8"} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={t.path} />
-                </svg>
-              </div>
-              <span style={{ fontSize: 10, fontWeight: 800, color: active ? "#3D9BFF" : "#B7C6D8" }}>{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* HomeBar */}
-      <div style={{ display: "flex", justifyContent: "center", paddingBottom: 8 }}>
-        <div style={{ width: 134, height: 5, borderRadius: 999, background: "rgba(36,59,83,0.28)" }} />
+      {/* TabBar — floats above home indicator via safe-area padding */}
+      <div className="app-tabbar">
+        <div className="app-tabbar-inner">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 2,
+                  flex: 1,
+                  border: "none",
+                  cursor: "pointer",
+                  background: "none",
+                  padding: 0,
+                }}
+              >
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 2,
+                  width: 44,
+                  height: 34,
+                  borderRadius: 14,
+                  background: active ? "#3D9BFF" : "transparent",
+                  transition: "background 0.18s",
+                }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#B7C6D8"} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={t.path} />
+                  </svg>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: active ? "#3D9BFF" : "#B7C6D8" }}>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
