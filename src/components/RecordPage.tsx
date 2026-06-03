@@ -10,14 +10,7 @@ import { MealEmoji, getMealBg } from "./MealEmoji";
 const INT_ITEMS = Array.from({ length: 171 }, (_, i) => String(i + 30)); // 30–200
 const DEC_ITEMS = Array.from({ length: 10 }, (_, i) => String(i));
 
-const FOODS = [
-  { key: "ramen", emoji: "🍜", grad: "linear-gradient(135deg,#F6B26B,#E07B39)", name: "醤油ラーメン", kcal: 580, p: 24, f: 18, c: 78, conf: 0.92 },
-  { key: "curry", emoji: "🍛", grad: "linear-gradient(135deg,#E9A04B,#C2671F)", name: "チキンカレー", kcal: 720, p: 28, f: 26, c: 92, conf: 0.88 },
-  { key: "salad", emoji: "🥗", grad: "linear-gradient(135deg,#9BE36B,#4FAE52)", name: "シーザーサラダ", kcal: 280, p: 14, f: 18, c: 14, conf: 0.9 },
-  { key: "onigiri", emoji: "🍙", grad: "linear-gradient(135deg,#C7D2DD,#8FA3B6)", name: "鮭おにぎり", kcal: 200, p: 5, f: 2, c: 40, conf: 0.95 },
-  { key: "teishoku", emoji: "🐟", grad: "linear-gradient(135deg,#7EC9F0,#3D87C9)", name: "焼き魚定食", kcal: 620, p: 34, f: 16, c: 78, conf: 0.86 },
-  { key: "cake", emoji: "🍰", grad: "linear-gradient(135deg,#F7A8C4,#E36A93)", name: "ショートケーキ", kcal: 340, p: 5, f: 18, c: 40, conf: 0.83 },
-];
+type FoodResult = { name: string; kcal: number; p: number; f: number; c: number; conf: number };
 
 const MEAL_TYPES = ["朝食", "昼食", "間食", "夕食"];
 const MEAL_EMOJIS: Record<string, string> = { 朝食: "🌅", 昼食: "🌤", 間食: "🍎", 夕食: "🌙" };
@@ -134,33 +127,63 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
 
   // Photo flow
   const [photoStep, setPhotoStep] = useState<PhotoStep>("choose");
-  const [selectedFood, setSelectedFood] = useState(FOODS[0]);
+  const [photoResult, setPhotoResult] = useState<FoodResult | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>("");
   const [adjustKcal, setAdjustKcal] = useState(0);
   const [photoMealType, setPhotoMealType] = useState("昼食");
+  const [photoError, setPhotoError] = useState("");
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
 
-  const pickFood = (food: typeof FOODS[0]) => {
-    setSelectedFood(food);
-    setAdjustKcal(0);
+  const analyzePhoto = async (file: File) => {
+    setPhotoPreview(URL.createObjectURL(file));
     setPhotoStep("analyzing");
-    setTimeout(() => setPhotoStep("result"), 1700);
+    setPhotoError("");
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/analyze-food", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setPhotoResult(data);
+      setAdjustKcal(0);
+      setPhotoStep("result");
+    } catch {
+      setPhotoError("解析に失敗しました。もう一度試してください。");
+      setPhotoStep("choose");
+    }
   };
 
   const handleAddFromPhoto = () => {
-    const finalKcal = selectedFood.kcal + adjustKcal;
-    const ratio = finalKcal / selectedFood.kcal;
+    if (!photoResult) return;
+    const finalKcal = photoResult.kcal + adjustKcal;
+    const ratio = finalKcal / (photoResult.kcal || 1);
     addMealOnDate(selectedDate, {
       type: photoMealType,
-      name: selectedFood.name,
+      name: photoResult.name,
       kcal: finalKcal,
       time: new Date().toTimeString().slice(0, 5),
-      emoji: selectedFood.emoji,
+      emoji: "rice",
       tone: MEAL_TONES[photoMealType] ?? "#8FBF6E",
-      p: Math.round(selectedFood.p * ratio),
-      f: Math.round(selectedFood.f * ratio),
-      c: Math.round(selectedFood.c * ratio),
+      p: Math.round(photoResult.p * ratio),
+      f: Math.round(photoResult.f * ratio),
+      c: Math.round(photoResult.c * ratio),
     });
     setSheetMode("none");
     setPhotoStep("choose");
+    setPhotoPreview("");
+    setPhotoResult(null);
     showToast("✅ 食事を追加しました！");
   };
 
@@ -482,27 +505,34 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
         {photoStep === "choose" && (
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53", marginBottom: 4 }}>📷 写真で記録</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginBottom: 16 }}>写真を選ぶとAIがカロリーを推定します</div>
-            <button onClick={() => pickFood(FOODS[Math.floor(Math.random() * FOODS.length)])}
-              style={{ width: "100%", height: 70, borderRadius: 18, border: "2.5px dashed #3D9BFF", background: "#F0F7FF", color: "#2E7BE0", fontSize: 15, fontWeight: 800, marginBottom: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#8AA0B8", marginBottom: 16 }}>写真を撮るとAIがカロリーを推定します</div>
+            {photoError && (
+              <div style={{ background: "#FFF0F0", color: "#FF6B6B", borderRadius: 14, padding: "10px 14px", fontSize: 13, fontWeight: 700, marginBottom: 14 }}>{photoError}</div>
+            )}
+            {/* Hidden file inputs */}
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment"
+              style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) analyzePhoto(f); e.target.value = ""; }}
+            />
+            <input ref={libraryInputRef} type="file" accept="image/*"
+              style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) analyzePhoto(f); e.target.value = ""; }}
+            />
+            <button onClick={() => cameraInputRef.current?.click()}
+              style={{ width: "100%", height: 70, borderRadius: 18, border: "2.5px dashed #3D9BFF", background: "#F0F7FF", color: "#2E7BE0", fontSize: 15, fontWeight: 800, marginBottom: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
               <span style={{ fontSize: 24 }}>📸</span> カメラで撮影する
             </button>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#8AA0B8", marginBottom: 10 }}>ライブラリから選ぶ</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              {FOODS.map((f) => (
-                <button key={f.key} onClick={() => pickFood(f)}
-                  style={{ aspectRatio: "1", borderRadius: 18, border: "none", background: f.grad, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, boxShadow: "0 6px 16px rgba(20,40,70,0.14)" }}>
-                  {f.emoji}
-                </button>
-              ))}
-            </div>
+            <button onClick={() => libraryInputRef.current?.click()}
+              style={{ width: "100%", height: 70, borderRadius: 18, border: "2.5px dashed #B7C6D8", background: "#F8FBFF", color: "#5B8DD6", fontSize: 15, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <span style={{ fontSize: 24 }}>🖼️</span> ライブラリから選ぶ
+            </button>
           </div>
         )}
 
         {photoStep === "analyzing" && (
           <div style={{ padding: "20px 0 30px", textAlign: "center" }}>
-            <div style={{ width: 150, height: 150, borderRadius: 26, margin: "0 auto", background: selectedFood.grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 78, position: "relative", overflow: "hidden" }}>
-              {selectedFood.emoji}
+            <div style={{ width: 150, height: 150, borderRadius: 26, margin: "0 auto", overflow: "hidden", position: "relative", background: "#F0F7FF" }}>
+              {photoPreview && <img src={photoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
               <div className="scanline" />
             </div>
             <div style={{ marginTop: 22, fontSize: 18, fontWeight: 800, color: "#243B53" }}>AIが解析しています…</div>
@@ -512,15 +542,17 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
           </div>
         )}
 
-        {photoStep === "result" && (
+        {photoStep === "result" && photoResult && (
           <div>
             <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16 }}>
-              <div style={{ width: 76, height: 76, borderRadius: 20, background: selectedFood.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>{selectedFood.emoji}</div>
+              <div style={{ width: 76, height: 76, borderRadius: 20, overflow: "hidden", flexShrink: 0, background: "#F0F7FF" }}>
+                {photoPreview && <img src={photoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#E2FBF4", color: "#2FB39A", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, marginBottom: 6, whiteSpace: "nowrap" }}>
-                  ✨ AI推定 · 確度 {Math.round(selectedFood.conf * 100)}%
+                  ✨ AI推定 · 確度 {Math.round(photoResult.conf * 100)}%
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{selectedFood.name}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#243B53" }}>{photoResult.name}</div>
               </div>
             </div>
 
@@ -530,17 +562,17 @@ export default function RecordPage({ store, showToast }: { store: StoreResult; s
                 <button onClick={() => setAdjustKcal((k) => k - 10)}
                   style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 24, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(61,155,255,0.16)" }}>−</button>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                  <span style={{ fontSize: 40, fontWeight: 800, color: "#2E7BE0", fontVariantNumeric: "tabular-nums" }}>{selectedFood.kcal + adjustKcal}</span>
+                  <span style={{ fontSize: 40, fontWeight: 800, color: "#2E7BE0", fontVariantNumeric: "tabular-nums" }}>{photoResult.kcal + adjustKcal}</span>
                   <span style={{ fontSize: 16, fontWeight: 800, color: "#8AA0B8" }}>kcal</span>
                 </div>
                 <button onClick={() => setAdjustKcal((k) => k + 10)}
                   style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: "#fff", color: "#2E7BE0", fontSize: 24, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(61,155,255,0.16)" }}>＋</button>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                {[["P", selectedFood.p, "#46D6B6"], ["F", selectedFood.f, "#FFB03A"], ["C", selectedFood.c, "#3D9BFF"]].map(([k, v, col]) => (
+                {[["P", photoResult.p, "#46D6B6"], ["F", photoResult.f, "#FFB03A"], ["C", photoResult.c, "#3D9BFF"]].map(([k, v, col]) => (
                   <div key={k as string} style={{ flex: 1, background: "#fff", borderRadius: 12, padding: "8px 0", textAlign: "center" }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: col as string }}>{k}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#243B53" }}>{Math.round((v as number) * ((selectedFood.kcal + adjustKcal) / selectedFood.kcal))}<span style={{ fontSize: 10, color: "#8AA0B8" }}>g</span></div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#243B53" }}>{Math.round((v as number) * ((photoResult.kcal + adjustKcal) / (photoResult.kcal || 1)))}<span style={{ fontSize: 10, color: "#8AA0B8" }}>g</span></div>
                   </div>
                 ))}
               </div>
